@@ -28,6 +28,9 @@ released for Windows, macOS and Linux, so UI text and messages are English.
     `GpioServer` (pins over TCP 4142, line protocol; every command ends with
     ok/err, watched pins push `change ...`). CHIP_EN/GPIO9 nets in the
     simulation reset the chip (`EmulatedBoard.EnableChanged`).
+- `firmware/components/boardsim_wifi` - ESP-IDF component that wraps the
+  esp_wifi API (`-Wl,--wrap`); in QEMU (SYSCON 0x600263F8 reads "QEMU") the
+  station runs on openeth. Projects with MINIMAL_BUILD must REQUIRE it.
 - `clients/python` - `boardsim_gpio.py` (no deps, RPi.GPIO style; callbacks
   run on their own thread so they may call get/set) and `pi_bridge.py`.
 - `src/BoardSim.App` - Avalonia 11.2.3 (pinned; the template wants 12, which
@@ -65,8 +68,7 @@ v4: it is a reviewed board, so a hit there is usually a false positive.
    Still open: WS2812 strings on the connectors, regulators turning rails on.
 2. Done: ESP32-C3 firmware runs in the QEMU fork (GPIO, RMT, SAR ADC added),
    drives the simulation and shows the LED strings. Wi-Fi cannot be emulated:
-   firmware needs a build that uses the emulated OpenCores Ethernet (Julelys:
-   CONFIG_JULELYS_QEMU). `idf.py -p rfc2217://localhost:4141 flash` works
+   firmware uses the boardsim_wifi component (or openeth directly). `idf.py -p rfc2217://localhost:4141 flash` works
    against the emulated chip. Still open: shipping QEMU builds for Windows,
    macOS and Linux.
 

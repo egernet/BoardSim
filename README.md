@@ -34,6 +34,7 @@ and 4.8 V on the connector.</i></p>
 | 🔌 **Has a USB port** | `idf.py -p rfc2217://localhost:4141 flash monitor` - esptool resets the emulated chip into download mode and flashes it, like a board on your desk. |
 | 📈 **Has an oscilloscope** | Clip up to four probes on any net and see the signal: seconds in roll mode, microseconds on LED data, with decoded bits. |
 | 💡 **Shows LED strings** | WS2812 data is decoded and followed through buffers and multiplexers to the connector it actually reaches. |
+| 📶 **Has Wi-Fi** | Add one component and the firmware's own Wi-Fi code connects in BoardSim, with real internet through your computer. |
 | 🥧 **Talks to a Raspberry Pi** | The pins are open on the network: `nc`, a Python library in the style of `RPi.GPIO`, or a bridge to a real Pi's pins. |
 | 🕰️ **Lets you break things** | Click the crystal and give it another frequency: the UART turns to garbage, the LED timing falls apart - exactly as on hardware. |
 
@@ -80,9 +81,26 @@ idf.py -p rfc2217://localhost:4141 flash monitor
 - **Flash build…** writes an ESP-IDF build folder straight into flash, without esptool.
 - Headless: `boardsim chip board.kicad_pcb` powers the chip and serves the same port.
 
-Wi-Fi cannot be emulated, so firmware that needs a network should use the emulated OpenCores
-Ethernet (`CONFIG_ETH_USE_OPENETH`). UDP port 2412 in the chip is forwarded from
-`127.0.0.1:12412`; the Julelys manager can stream to it.
+### Wi-Fi
+
+The ESP32's radio cannot be emulated, so BoardSim emulates the Wi-Fi *API* instead. Add the
+[`boardsim_wifi`](firmware/components/boardsim_wifi) component to your project and rebuild once:
+
+```bash
+idf.py -D EXTRA_COMPONENT_DIRS=/path/to/BoardSim/firmware/components build
+```
+
+The same binary runs on the real board (every call goes to ESP-IDF's own Wi-Fi) and in BoardSim,
+where `esp_wifi_connect()` succeeds, `IP_EVENT_STA_GOT_IP` arrives and the firmware has the
+network and the internet through your computer - Espressif's `http_request` example fetches
+example.com unchanged. Inside, the chip is 10.0.2.15 and your computer 10.0.2.2.
+
+UDP port 2412 in the chip is forwarded from `127.0.0.1:12412` (or the next free port), so the
+Julelys manager can stream to the simulated tree:
+
+```bash
+JulelysManager --mode stream --host 127.0.0.1 --port 12412 --matrix-width 4 --matrix-height 125
+```
 
 ## Talk to it from a Raspberry Pi
 
@@ -213,7 +231,6 @@ Firmware emulation needs the QEMU fork. Build it from
 
 ## Roadmap
 
-- Wi-Fi in the emulator, at least "there is a network".
 - Release builds for Windows and Linux.
 - More part models, and more chips than the ESP32-C3.
 

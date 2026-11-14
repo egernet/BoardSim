@@ -1,0 +1,29 @@
+menu "BoardSim Wi-Fi"
+
+    config BOARDSIM_WIFI
+        bool "Emulate Wi-Fi when running in BoardSim"
+        default y
+        select ETH_USE_OPENETH
+        help
+            In BoardSim (QEMU) there is no radio. With this on, the esp_wifi API
+            is emulated on top of the emulated Ethernet: connecting succeeds,
+            the usual Wi-Fi and IP events arrive on the station interface, and
+            QEMU's NAT gives the firmware network and internet access through
+            the computer. On real hardware every call goes to ESP-IDF's own
+            Wi-Fi unchanged; the check is made at run time.
+
+    config BOARDSIM_WIFI_AUTOCONNECT
+        bool "Connect as soon as Wi-Fi is started"
+        default y
+        depends on BOARDSIM_WIFI
+        help
+            In BoardSim, act as if esp_wifi_connect() was called when the
+            station starts, so firmware that waits for saved credentials still
+            gets a network. Off: only esp_wifi_connect() connects.
+
+    config BOARDSIM_WIFI_SSID
+        string "Network name reported in BoardSim"
+        default "BoardSim"
+        depends on BOARDSIM_WIFI
+
+endmenu

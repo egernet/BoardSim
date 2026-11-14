@@ -134,6 +134,8 @@ public sealed class QemuSession : IDisposable
         _process.ErrorDataReceived += (_, e) => { if (e.Data is not null) lock (_log) _log.AppendLine(e.Data); };
         _process.Exited += (_, _) => Exited?.Invoke(_process.ExitCode);
         _process.Start();
+        // QEMU must not outlive us, however we stop (Ctrl+C, kill, a crash).
+        lock (Running) Running.Add(_process);
         _process.BeginOutputReadLine();
         _process.BeginErrorReadLine();
 
@@ -199,8 +201,24 @@ public sealed class QemuSession : IDisposable
         try { _bridge.GetStream().Write(Encoding.ASCII.GetBytes(line)); } catch (IOException) { }
     }
 
+    private static readonly List<Process> Running = new();
+
+    static QemuSession()
+    {
+        void KillAll()
+        {
+            lock (Running)
+                foreach (var p in Running)
+                    try { if (!p.HasExited) p.Kill(); } catch (Exception) { }
+        }
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => KillAll();
+        System.Runtime.InteropServices.PosixSignalRegistration.Create(System.Runtime.InteropServices.PosixSignal.SIGTERM, ctx => { KillAll(); });
+        System.Runtime.InteropServices.PosixSignalRegistration.Create(System.Runtime.InteropServices.PosixSignal.SIGHUP, ctx => { KillAll(); });
+    }
+
     public void Stop()
     {
+        if (_process is not null) lock (Running) Running.Remove(_process);
         _cts.Cancel();
         try { if (_process is { HasExited: false }) _process.Kill(); } catch (InvalidOperationException) { }
         _bridge?.Dispose();
