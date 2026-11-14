@@ -29,6 +29,22 @@ dotnet run --project src/BoardSim.Cli -- check path/to/board.kicad_pcb
 In the app: drag to pan, scroll to zoom, `F` to fit, click a pad to light up
 its net, click a finding to jump to it.
 
+## Run firmware
+
+BoardSim can run ESP32-C3 firmware on the board's chip. Its GPIO outputs
+drive the simulation, buttons and pulls reach its inputs, and LED data from
+the RMT is decoded and shown on the connector it reaches.
+
+This needs BoardSim's QEMU fork,
+[egernet/qemu-boardsim](https://github.com/egernet/qemu-boardsim) (branch
+`boardsim`), which adds GPIO, RMT and SAR ADC emulation to Espressif's QEMU.
+Point `BOARDSIM_QEMU` at its `qemu-system-riscv32`, then use
+**Run firmware…** and pick the ESP-IDF build folder.
+
+QEMU cannot emulate Wi-Fi. Firmware that needs a network should use the
+emulated OpenCores Ethernet (`CONFIG_ETH_USE_OPENETH`); UDP 2412 in the
+guest is forwarded from `127.0.0.1:12412`.
+
 ## Expected connections
 
 ```jsonc
