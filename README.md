@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/egernet/BoardSim/releases/latest"><b>Download for Mac</b></a> ·
+  <a href="https://github.com/egernet/BoardSim/releases"><b>Download for Mac</b></a> ·
   <a href="#quick-start">Quick start</a> ·
   <a href="#flash-it-like-a-real-board">Flash with idf.py</a> ·
   <a href="#how-it-works">How it works</a>
@@ -40,7 +40,7 @@ and 4.8 V on the connector.</i></p>
 
 ### On a Mac (Apple Silicon)
 
-1. Download **BoardSim-…-macos-arm64.zip** from the [latest release](https://github.com/egernet/BoardSim/releases/latest) and unzip it.
+1. Download **BoardSim-…-macos-arm64.zip** from the [releases page](https://github.com/egernet/BoardSim/releases) and unzip it.
 2. Move **BoardSim.app** to *Applications*.
 3. The app is not notarised by Apple, so macOS stops it the first time. Run this once in Terminal:
    ```bash
