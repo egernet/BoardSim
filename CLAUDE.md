@@ -46,7 +46,7 @@ released for Windows, macOS and Linux, so UI text and messages are English.
 .NET, QEMU from `../qemu-esp` bundled with its dylibs by
 `scripts/bundle-qemu-macos.sh`, the `examples/` folder) and a zip for a GitHub
 release. The app is ad-hoc signed, not notarised. `examples/julelys-v4` holds
-the board and a prebuilt Julelys firmware (CONFIG_JULELYS_QEMU).
+the board and a prebuilt Julelys firmware (the ordinary build plus boardsim_wifi).
 
 ## Screenshots without a display session
 
