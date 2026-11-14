@@ -15,6 +15,7 @@
     "type": "mcu"
   },
   "supply": "VDD3P3_CPU",
+  "crystalHz": 40000000,
   "pins": {
     "1": {
       "name": "LNA_IN",

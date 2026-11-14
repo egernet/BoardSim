@@ -27,7 +27,6 @@ public sealed class EmulatedBoard
     private readonly Dictionary<int, PinRef> _gpio = new();
     private readonly int[] _route = Enumerable.Repeat(GpioSignal, 22).ToArray();
     private uint _out, _enable, _sentInputs = uint.MaxValue;
-    private readonly Dictionary<string, List<PinRef>> _targetCache = new();
 
     public Simulator Simulator { get; }
     public Part Mcu { get; }
@@ -130,8 +129,12 @@ public sealed class EmulatedBoard
     {
         Frames++;
         if (!_gpio.TryGetValue(rmt.Gpio, out var source)) return;
-        var colors = Ws2812.Decode(rmt.Items, rmt.TickPs / 1000.0, LedOrder);
-        foreach (var target in Targets(source))
+        // The firmware counts RMT ticks; how long a tick really is depends on the crystal.
+        var tickNs = rmt.TickPs / 1000.0 / Simulator.ClockRatio(Mcu);
+        var colors = Ws2812.Decode(rmt.Items, tickNs, LedOrder);
+        var follow = Follow(source);
+        LastRmt = new RmtCapture(source, rmt.Items, tickNs, DateTime.Now, follow.Nets);
+        foreach (var target in follow.Connectors)
         {
             if (!Strings.TryGetValue(target, out var s)) Strings[target] = s = new LedString { Pin = target };
             s.Leds = colors;
@@ -140,32 +143,49 @@ public sealed class EmulatedBoard
         }
     }
 
+    /// <summary>Connector pins that follow <paramref name="source"/>.</summary>
+    public List<PinRef> Targets(PinRef source) => Follow(source).Connectors;
+
+    private readonly Dictionary<string, Following> _followCache = new();
+
+    /// <summary>What a pin's signal reaches: every net that is high when it is high and low when it is low, with both voltages.</summary>
+    public sealed record Following(List<PinRef> Connectors, IReadOnlyDictionary<Net, (double High, double Low)> Nets);
+
     /// <summary>
-    /// Connector pins that follow <paramref name="source"/>: high when it is
-    /// driven high, low when it is driven low, with everything else as it is now.
+    /// Drives <paramref name="source"/> high, then low, with everything else as
+    /// it is now, and keeps the nets that follow it.
     /// </summary>
-    public List<PinRef> Targets(PinRef source)
+    public Following Follow(PinRef source)
     {
-        var key = $"{source.Id}:{_out:x}:{_enable:x}:{string.Join(',', _route)}";
-        if (_targetCache.TryGetValue(key, out var cached)) return cached;
+        var key = $"{source.Id}:{_out:x}:{_enable:x}:{string.Join(',', _route)}:{Simulator.ClockRatio(Mcu)}";
+        if (_followCache.TryGetValue(key, out var cached)) return cached;
 
-        var connectorPins = Simulator.Circuit.Parts.Where(p => p.Kind == PartKind.Connector)
-            .SelectMany(p => p.Pins).Where(p => !p.Net.IsRail && !p.Net.IsNoConnect).ToList();
         var before = Simulator.DriveOf(source);
-
         Simulator.SetPin(source, PinDrive.High);
         Simulator.Run();
-        var high = connectorPins.Where(p => Simulator.Nets.TryGetValue(p.Net, out var r) && r.State == NetState.High).ToHashSet();
+        var high = Simulator.Nets.Where(n => n.Value.State == NetState.High).ToDictionary(n => n.Key, n => n.Value.Volts ?? 0);
         Simulator.SetPin(source, PinDrive.Low);
         Simulator.Run();
-        var result = connectorPins.Where(p => high.Contains(p) && Simulator.Nets.TryGetValue(p.Net, out var r) && r.State == NetState.Low)
-            .Where(p => p.Part != Mcu && p.Part.Model?.Id != "raspberry-pi-40")
+        var nets = new Dictionary<Net, (double, double)>();
+        foreach (var (net, vh) in high)
+            if (Simulator.Nets.TryGetValue(net, out var r) && r.State == NetState.Low && !net.IsRail)
+                nets[net] = (vh, r.Volts ?? 0);
+
+        var connectors = Simulator.Circuit.Parts.Where(p => p.Kind == PartKind.Connector)
+            .SelectMany(p => p.Pins)
+            .Where(p => nets.ContainsKey(p.Net) && p.Part != Mcu && p.Part.Model?.Id != "raspberry-pi-40")
             .ToList();
 
         Simulator.SetPin(source, before);
         Simulator.Run();
-        if (_targetCache.Count > 256) _targetCache.Clear();
-        _targetCache[key] = result;
+        if (_followCache.Count > 256) _followCache.Clear();
+        var result = new Following(connectors, nets);
+        _followCache[key] = result;
         return result;
     }
+
+    /// <summary>The last RMT transmission, as the oscilloscope shows it.</summary>
+    public sealed record RmtCapture(PinRef Source, uint[] Items, double TickNs, DateTime Time, IReadOnlyDictionary<Net, (double High, double Low)> Nets);
+
+    public RmtCapture? LastRmt { get; private set; }
 }

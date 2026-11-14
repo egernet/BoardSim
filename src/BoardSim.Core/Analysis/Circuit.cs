@@ -192,6 +192,14 @@ public sealed class Circuit
              .Where(x => x.Item2 is { IsRail: true })
              .Select(x => (x.p, x.Item2!));
 
+    /// <summary>The crystal on a chip's XTAL pins (also through a series inductor or resistor).</summary>
+    public Part? CrystalOf(Part chip)
+    {
+        var nets = chip.Pins.Where(p => p.Name.StartsWith("XTAL", StringComparison.OrdinalIgnoreCase))
+            .SelectMany(p => SeriesNets(p.Net, 2)).ToHashSet();
+        return Parts.FirstOrDefault(p => p.Kind == PartKind.Crystal && p.Pins.Any(x => nets.Contains(x.Net)));
+    }
+
     /// <summary>Total capacitance from a net straight to ground.</summary>
     public double CapacitanceToGround(Net net, out List<Part> caps)
     {

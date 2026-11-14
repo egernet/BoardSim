@@ -55,7 +55,7 @@ public sealed class EmulatedChip : IDisposable
                 _session?.Boot(download);
                 Status?.Invoke(download ? "Reset into download mode (GPIO9 low)" : "Reset: booting from flash");
             });
-        Port.Data += data => _session?.WriteUart(data);
+        Port.Data += data => _session?.WriteUart(BaudMismatch ? Garble(data, 1 / Board.Simulator.ClockRatio(Board.Mcu)) : data);
         Port.ControlLines += (dtr, rts) =>
         {
             if (TraceControlLines) Status?.Invoke($"DTR={(dtr ? 1 : 0)} RTS={(rts ? 1 : 0)}");
@@ -113,8 +113,28 @@ public sealed class EmulatedChip : IDisposable
     private double _tokens = ConsoleBytesPerSecond / 4;
     private long _lastTicks = Environment.TickCount64;
 
+    /// <summary>
+    /// With the wrong crystal the UART runs at the wrong baud rate. Beyond about
+    /// 4 % the receiver samples the wrong bits: the host sees garbage, and what
+    /// the host sends arrives as garbage too.
+    /// </summary>
+    public bool BaudMismatch => Math.Abs(Board.Simulator.ClockRatio(Board.Mcu) - 1) > 0.04;
+
+    private static byte[] Garble(byte[] data, double ratio)
+    {
+        var shift = (int)Math.Round(Math.Log2(ratio) * 8);
+        var result = new byte[data.Length];
+        for (var i = 0; i < data.Length; i++)
+        {
+            var b = data[i];
+            result[i] = (byte)(shift >= 0 ? (b << shift % 8) | (b >> (8 - shift % 8)) ^ 0x5a : (b >> -shift % 8) ^ 0xa5);
+        }
+        return result;
+    }
+
     private void OnUart(byte[] data)
     {
+        if (BaudMismatch) data = Garble(data, Board.Simulator.ClockRatio(Board.Mcu));
         if (DownloadMode)
         {
             Port.Write(data);       // esptool's SLIP traffic: pass it all, it is request/response

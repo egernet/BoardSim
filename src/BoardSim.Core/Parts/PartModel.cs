@@ -82,6 +82,8 @@ public sealed class PartModel
     public Dictionary<string, PinModel> Pins { get; set; } = new();
     /// <summary>Pin name pairs a signal passes through (buffer A to Y, mux Z to Yn).</summary>
     public List<string[]> Through { get; set; } = new();
+    /// <summary>The crystal frequency the chip is built for (on its XTAL pins), in Hz.</summary>
+    public double? CrystalHz { get; set; }
     /// <summary>How the part acts in the simulation; null for parts that only get checked.</summary>
     public BehaviorModel? Behavior { get; set; }
 

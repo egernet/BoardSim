@@ -443,3 +443,39 @@ public sealed class SinglePinNetRule : IRule
         }
     }
 }
+
+/// <summary>The crystal on a chip's XTAL pins has the frequency the chip expects.</summary>
+public sealed class CrystalRule : IRule
+{
+    public string Id => "crystal";
+    public string Description => "The crystal matches the frequency the chip is built for.";
+
+    public IEnumerable<Finding> Check(CheckContext ctx)
+    {
+        var c = ctx.Circuit;
+        foreach (var chip in c.Parts.Where(p => p.Model?.CrystalHz is not null))
+        {
+            var expected = chip.Model!.CrystalHz!.Value;
+            var crystal = c.CrystalOf(chip);
+            if (crystal is null)
+            {
+                yield return new Finding
+                {
+                    Severity = Severity.Warning, Rule = Id,
+                    Title = $"{chip.Reference} has no crystal on its XTAL pins",
+                    Detail = $"{chip.Footprint.Value} needs a {Units.Format(expected, "Hz")} crystal.",
+                    Refs = new[] { chip.Reference }, Location = chip.Footprint.Position,
+                };
+                continue;
+            }
+            if (crystal.Value is { } hz && Math.Abs(hz / expected - 1) > 0.0005)
+                yield return new Finding
+                {
+                    Severity = Severity.Error, Rule = Id,
+                    Title = $"{crystal.Reference} is {Units.Format(hz, "Hz")}, {chip.Reference} expects {Units.Format(expected, "Hz")}",
+                    Detail = "Every clock in the chip comes from the crystal: UART baud rates, timers and RMT pulses all run at the wrong speed.",
+                    Refs = new[] { crystal.Reference, chip.Reference }, Location = crystal.Footprint.Position,
+                };
+        }
+    }
+}

@@ -83,3 +83,45 @@ public class EmulationTests
         Assert.Equal(0u, inputs & (1u << 9));              // BOOT pressed: GPIO9 low
     }
 }
+
+public class CrystalTests
+{
+    [Fact]
+    public void FindsTheCrystalBehindTheSeriesInductor()
+    {
+        var c = Circuit.Build(Fixtures.V4, PartLibrary.BuiltIn());
+        Assert.Equal("Y1", c.CrystalOf(c.Part("U1")!)?.Reference);
+        Assert.Equal(40e6, c.Part("Y1")!.Value);
+    }
+
+    [Fact]
+    public void WrongCrystalIsAnErrorAndSlowsTheClock()
+    {
+        var text = File.ReadAllText(Path.Combine(Fixtures.Dir, "julelys_v4.kicad_pcb"));
+        var board = BoardSim.Core.KiCad.KiCadPcbLoader.Parse(text.Replace("\"40MHz\"", "\"26MHz\""));
+        var r = Checker.Run(board, PartLibrary.BuiltIn(), null);
+        Assert.Contains(r.Findings, f => f is { Rule: "crystal", Severity: Severity.Error } && f.Refs.Contains("Y1"));
+
+        var sim = new Simulator(r.Circuit);
+        Assert.Equal(0.65, sim.ClockRatio(r.Circuit.Part("U1")!), 3);
+    }
+
+    [Fact]
+    public void LedDataBreaksWhenTheCrystalIsFarOff()
+    {
+        var circuit = Circuit.Build(Fixtures.V4, PartLibrary.BuiltIn());
+        var sim = new Simulator(circuit);
+        var board = new EmulatedBoard(sim, EmulatedBoard.FindMcu(circuit)!, "RGB");
+        var frame = (BridgeMessage.Rmt)BridgeMessage.Parse(File.ReadAllText(Path.Combine(Fixtures.Dir, "rmt_frame_julelys_rain.txt")).Trim())!;
+        board.Handle(new BridgeMessage.Route(7, 51));
+        board.Handle(new BridgeMessage.Pins(0x10, 0x1b0));
+        board.Handle(frame);
+        var good = board.Strings.Values.Single().Leds.ToArray();
+
+        // 16 MHz: every pulse is 2.5x too long; 0-bits now look like 1-bits.
+        sim.SetCrystalHz(circuit.Part("Y1")!, 16e6);
+        board.Handle(frame);
+        var bad = board.Strings.Values.Single().Leds.ToArray();
+        Assert.NotEqual(good, bad);
+    }
+}

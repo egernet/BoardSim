@@ -30,6 +30,7 @@ public static class Checker
         new FloatingPinRule(),
         new PullRule(),
         new CapacitanceRule(),
+        new CrystalRule(),
         new FloatingOutputRule(),
         new DecouplingRule(),
         new SinglePinNetRule(),

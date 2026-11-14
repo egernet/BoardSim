@@ -55,6 +55,23 @@ public sealed class Simulator
         _pinDrives[pin] = (drive, drive == PinDrive.High ? high : 0);
     }
 
+    private readonly Dictionary<Part, double> _crystals = new();
+
+    /// <summary>A crystal's frequency: the value on the board, unless the user changed it.</summary>
+    public double? CrystalHz(Part crystal) => _crystals.TryGetValue(crystal, out var hz) ? hz : crystal.Value;
+    public void SetCrystalHz(Part crystal, double? hz) { if (hz is { } v) _crystals[crystal] = v; else _crystals.Remove(crystal); }
+
+    /// <summary>
+    /// How fast a chip's clock runs compared to what it was built for: 1 with the
+    /// right crystal, 0.65 with a 26 MHz crystal on a 40 MHz part.
+    /// </summary>
+    public double ClockRatio(Part chip)
+    {
+        if (chip.Model?.CrystalHz is not { } expected) return 1;
+        if (Circuit.CrystalOf(chip) is not { } crystal || CrystalHz(crystal) is not { } hz) return 1;
+        return hz / expected;
+    }
+
     public bool IsPressed(Part sw) => _pressed.Contains(sw);
     public void SetPressed(Part sw, bool pressed) { if (pressed) _pressed.Add(sw); else _pressed.Remove(sw); }
 
