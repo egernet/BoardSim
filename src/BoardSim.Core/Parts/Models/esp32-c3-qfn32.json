@@ -11,6 +11,9 @@
       "QFN-32"
     ]
   },
+  "behavior": {
+    "type": "mcu"
+  },
   "supply": "VDD3P3_CPU",
   "pins": {
     "1": {

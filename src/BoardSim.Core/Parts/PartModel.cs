@@ -41,6 +41,25 @@ public sealed class PinModel
     public string? Why { get; set; }
 }
 
+/// <summary>
+/// Simulation behaviour. "analogMux": Common connects to Channels[Select] while
+/// Enable is active. "buffer": Output follows Input while Enable is active.
+/// "mcu": I/O pins are inputs (with internal pulls) unless driven.
+/// </summary>
+public sealed class BehaviorModel
+{
+    public string Type { get; set; } = "";
+    public string? Common { get; set; }
+    public List<string>? Select { get; set; }
+    public List<string>? Channels { get; set; }
+    public string? Enable { get; set; }
+    /// <summary>"low" or "high".</summary>
+    public string? EnableActive { get; set; }
+    public double? OnResistance { get; set; }
+    public string? Input { get; set; }
+    public string? Output { get; set; }
+}
+
 public sealed class PartMatch
 {
     /// <summary>Regexes tried against the footprint's value.</summary>
@@ -63,6 +82,8 @@ public sealed class PartModel
     public Dictionary<string, PinModel> Pins { get; set; } = new();
     /// <summary>Pin name pairs a signal passes through (buffer A to Y, mux Z to Yn).</summary>
     public List<string[]> Through { get; set; } = new();
+    /// <summary>How the part acts in the simulation; null for parts that only get checked.</summary>
+    public BehaviorModel? Behavior { get; set; }
 
     public bool Matches(Footprint fp)
     {

@@ -17,6 +17,12 @@ public interface IRule
     IEnumerable<Finding> Check(CheckContext ctx);
 }
 
+/// <summary>The parts of <see cref="RuleHelpers"/> the simulator uses too.</summary>
+public static class RuleHelpersPublic
+{
+    public static double? Threshold(string? vih, Part part) => RuleHelpers.Threshold(vih, part);
+}
+
 /// <summary>Helpers shared by the rules.</summary>
 internal static class RuleHelpers
 {

@@ -7,6 +7,13 @@
       "^(74|SN74)AHCT1G125"
     ]
   },
+  "behavior": {
+    "type": "buffer",
+    "input": "A",
+    "output": "Y",
+    "enable": "OE",
+    "enableActive": "low"
+  },
   "supply": "VCC",
   "through": [
     [
