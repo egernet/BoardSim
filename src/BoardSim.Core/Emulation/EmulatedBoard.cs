@@ -33,6 +33,12 @@ public sealed class EmulatedBoard
     public string LedOrder { get; set; }
     public Dictionary<PinRef, LedString> Strings { get; } = new();
     public int Version { get; private set; }
+
+    /// <summary>The latest chip time seen on the bridge, in ns (0 for bridges without time stamps).</summary>
+    public long ChipTimeNs { get; private set; }
+
+    private const int MaxEdges = 20000;
+    private readonly Dictionary<int, List<(long T, bool High)>> _edges = new();
     public int Frames { get; private set; }
     public int Resets { get; private set; }
 
@@ -75,6 +81,7 @@ public sealed class EmulatedBoard
                 case BridgeMessage.Pins p:
                     _out = p.Out;
                     _enable = p.Enable;
+                    if (p.TimeNs is { } t) RecordEdges(t);
                     ApplyPins();
                     break;
                 case BridgeMessage.Route r when r.Gpio is >= 0 and < 22:
@@ -86,6 +93,49 @@ public sealed class EmulatedBoard
                     break;
             }
             Version++;
+        }
+    }
+
+    private void RecordEdges(long t)
+    {
+        ChipTimeNs = Math.Max(ChipTimeNs, t);
+        for (var n = 0; n < 22; n++)
+        {
+            var bit = 1u << n;
+            if ((_enable & bit) == 0 || _route[n] != GpioSignal) continue;
+            var high = (_out & bit) != 0;
+            if (!_edges.TryGetValue(n, out var log)) _edges[n] = log = new List<(long, bool)>();
+            if (log.Count > 0 && log[^1].High == high) continue;
+            log.Add((t, high));
+            if (log.Count > MaxEdges) log.RemoveRange(0, MaxEdges / 4);
+        }
+    }
+
+    /// <summary>
+    /// What a probe on <paramref name="net"/> sees from the firmware: the last
+    /// LED frame if the net carries RMT data, or the edges of the GPIO output
+    /// that drives it (also through buffers, a mux or resistors). Null when no
+    /// output of the chip reaches it.
+    /// </summary>
+    public ScopeTrace? TraceFor(Net net)
+    {
+        lock (_lock)
+        {
+            if (LastRmt is { } rmt && rmt.Nets.TryGetValue(net, out var levels) && (DateTime.Now - rmt.Time).TotalSeconds < 3)
+                return new RmtTrace(rmt, levels.High, levels.Low) { Source = $"{rmt.Source.Label} (RMT)" };
+
+            foreach (var (n, pin) in _gpio)
+            {
+                if ((_enable & (1u << n)) == 0 || _route[n] != GpioSignal) continue;
+                if (!_edges.TryGetValue(n, out var log) || log.Count == 0) continue;
+                (double High, double Low) lv;
+                if (pin.Net == net) lv = (Mcu.SupplyVolts() ?? 3.3, 0);
+                else if (Follow(pin).Nets.TryGetValue(net, out var f)) lv = f;
+                else continue;
+                var from = Math.Max(0, log.Count - 4000);
+                return new EdgeTrace(log.GetRange(from, log.Count - from), lv.High, lv.Low, ChipTimeNs) { Source = pin.Label };
+            }
+            return null;
         }
     }
 
@@ -156,7 +206,8 @@ public sealed class EmulatedBoard
         var tickNs = rmt.TickPs / 1000.0 / Simulator.ClockRatio(Mcu);
         var colors = Ws2812.Decode(rmt.Items, tickNs, LedOrder);
         var follow = Follow(source);
-        LastRmt = new RmtCapture(source, rmt.Items, tickNs, DateTime.Now, follow.Nets);
+        if (rmt.TimeNs is { } end) ChipTimeNs = Math.Max(ChipTimeNs, end);
+        LastRmt = new RmtCapture(source, rmt.Items, tickNs, DateTime.Now, follow.Nets, rmt.TimeNs);
         foreach (var target in follow.Connectors)
         {
             if (!Strings.TryGetValue(target, out var s)) Strings[target] = s = new LedString { Pin = target };
@@ -183,15 +234,15 @@ public sealed class EmulatedBoard
         var key = $"{source.Id}:{_out:x}:{_enable:x}:{string.Join(',', _route)}:{Simulator.ClockRatio(Mcu)}";
         if (_followCache.TryGetValue(key, out var cached)) return cached;
 
+        // What-if solves: the published state (what the user sees) is not touched.
         var before = Simulator.DriveOf(source);
         Simulator.SetPin(source, PinDrive.High);
-        Simulator.Run();
-        var high = Simulator.Nets.Where(n => n.Value.State == NetState.High).ToDictionary(n => n.Key, n => n.Value.Volts ?? 0);
+        var high = Simulator.Solve(publish: false).Where(n => n.Value.State == NetState.High).ToDictionary(n => n.Key, n => n.Value.Volts ?? 0);
         Simulator.SetPin(source, PinDrive.Low);
-        Simulator.Run();
+        var low = Simulator.Solve(publish: false);
         var nets = new Dictionary<Net, (double, double)>();
         foreach (var (net, vh) in high)
-            if (Simulator.Nets.TryGetValue(net, out var r) && r.State == NetState.Low && !net.IsRail)
+            if (low.TryGetValue(net, out var r) && r.State == NetState.Low && !net.IsRail)
                 nets[net] = (vh, r.Volts ?? 0);
 
         var connectors = Simulator.Circuit.Parts.Where(p => p.Kind == PartKind.Connector)
@@ -200,7 +251,6 @@ public sealed class EmulatedBoard
             .ToList();
 
         Simulator.SetPin(source, before);
-        Simulator.Run();
         if (_followCache.Count > 256) _followCache.Clear();
         var result = new Following(connectors, nets);
         _followCache[key] = result;
@@ -208,7 +258,8 @@ public sealed class EmulatedBoard
     }
 
     /// <summary>The last RMT transmission, as the oscilloscope shows it.</summary>
-    public sealed record RmtCapture(PinRef Source, uint[] Items, double TickNs, DateTime Time, IReadOnlyDictionary<Net, (double High, double Low)> Nets);
+    public sealed record RmtCapture(PinRef Source, uint[] Items, double TickNs, DateTime Time,
+        IReadOnlyDictionary<Net, (double High, double Low)> Nets, long? EndNs = null);
 
     public RmtCapture? LastRmt { get; private set; }
 }

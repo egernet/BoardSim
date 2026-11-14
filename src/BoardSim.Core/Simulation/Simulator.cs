@@ -75,7 +75,14 @@ public sealed class Simulator
     public bool IsPressed(Part sw) => _pressed.Contains(sw);
     public void SetPressed(Part sw, bool pressed) { if (pressed) _pressed.Add(sw); else _pressed.Remove(sw); }
 
-    public void Run()
+    public void Run() => Solve(publish: true);
+
+    /// <summary>
+    /// Solves the circuit. With <paramref name="publish"/> false the result is
+    /// only returned: <see cref="Nets"/> keeps what the user sees (used for
+    /// what-if solves such as tracing a signal).
+    /// </summary>
+    public IReadOnlyDictionary<Net, NetResult> Solve(bool publish)
     {
         var nets = Circuit.Nets.Values.ToList();
         var index = nets.Select((n, i) => (n, i)).ToDictionary(x => x.n, x => x.i);
@@ -161,15 +168,14 @@ public sealed class Simulator
 
             if (!changed)
             {
-                Publish(nets, index, volts, sources, leds, ledOn);
-                return;
+                return Publish(nets, index, volts, sources, leds, ledOn, publish);
             }
         }
-        Publish(nets, index, volts, new(), leds, ledOn);
+        return Publish(nets, index, volts, new(), leds, ledOn, publish);
     }
 
-    private void Publish(List<Net> nets, Dictionary<Net, int> index, double[] volts,
-        List<(int Node, double Volts, double G, string Who, bool Strong)> sources, List<Part> leds, Dictionary<Part, bool> ledOn)
+    private IReadOnlyDictionary<Net, NetResult> Publish(List<Net> nets, Dictionary<Net, int> index, double[] volts,
+        List<(int Node, double Volts, double G, string Who, bool Strong)> sources, List<Part> leds, Dictionary<Part, bool> ledOn, bool publish)
     {
         var result = new Dictionary<Net, NetResult>();
         foreach (var n in nets)
@@ -189,6 +195,7 @@ public sealed class Simulator
             var state = v < 0.8 ? NetState.Low : v > 2.0 ? NetState.High : NetState.Mid;
             result[n] = new NetResult(v, state);
         }
+        if (!publish) return result;
         Nets = result;
 
         var currents = new Dictionary<Part, double>();
@@ -202,6 +209,7 @@ public sealed class Simulator
             currents[d] = Math.Max(0, (va - vk - vf) / rs);
         }
         LedCurrent = currents;
+        return result;
     }
 
     /// <summary>

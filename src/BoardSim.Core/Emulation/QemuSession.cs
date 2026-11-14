@@ -10,9 +10,11 @@ namespace BoardSim.Core.Emulation;
 public abstract record BridgeMessage
 {
     public sealed record Reset : BridgeMessage;
-    public sealed record Pins(uint Out, uint Enable) : BridgeMessage;
+    /// <summary>Output and enable masks; TimeNs is the chip's virtual time (newer QEMU forks send it).</summary>
+    public sealed record Pins(uint Out, uint Enable, long? TimeNs = null) : BridgeMessage;
     public sealed record Route(int Gpio, int Signal) : BridgeMessage;
-    public sealed record Rmt(int Gpio, uint TickPs, uint[] Items) : BridgeMessage;
+    /// <summary>One RMT transmission; TimeNs is the chip time it ended.</summary>
+    public sealed record Rmt(int Gpio, uint TickPs, uint[] Items, long? TimeNs = null) : BridgeMessage;
 
     public static BridgeMessage? Parse(string line)
     {
@@ -24,7 +26,8 @@ public abstract record BridgeMessage
             {
                 case "B": return new Reset();
                 case "O" when p.Length >= 3:
-                    return new Pins(Convert.ToUInt32(p[1], 16), Convert.ToUInt32(p[2], 16));
+                    return new Pins(Convert.ToUInt32(p[1], 16), Convert.ToUInt32(p[2], 16),
+                        p.Length > 3 && long.TryParse(p[3], out var ot) ? ot : null);
                 case "M" when p.Length >= 3:
                     return new Route(int.Parse(p[1], CultureInfo.InvariantCulture), int.Parse(p[2], CultureInfo.InvariantCulture));
                 case "R" when p.Length >= 4:
@@ -34,7 +37,8 @@ public abstract record BridgeMessage
                     var items = new uint[Math.Min(count, hex.Length / 8)];
                     for (var i = 0; i < items.Length; i++)
                         items[i] = uint.Parse(hex.AsSpan(i * 8, 8), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-                    return new Rmt(int.Parse(p[1], CultureInfo.InvariantCulture), uint.Parse(p[2], CultureInfo.InvariantCulture), items);
+                    return new Rmt(int.Parse(p[1], CultureInfo.InvariantCulture), uint.Parse(p[2], CultureInfo.InvariantCulture), items,
+                        p.Length > 5 && long.TryParse(p[5], out var rt) ? rt : null);
                 }
             }
         }
