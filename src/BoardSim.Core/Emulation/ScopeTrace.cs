@@ -92,3 +92,60 @@ public sealed record Measurement(double? Hz, double? DutyPercent, double? Min, d
         return 10 * b;
     }
 }
+
+public enum TriggerEdge { Rising, Falling, Either }
+
+/// <summary>Finds trigger events: the first edge of the right kind after the scope was armed.</summary>
+public static class Trigger
+{
+    public static bool Matches(TriggerEdge edge, bool before, bool after) => edge switch
+    {
+        TriggerEdge.Rising => !before && after,
+        TriggerEdge.Falling => before && !after,
+        _ => before != after,
+    };
+
+    /// <summary>Chip time (ns) of the first trigger event after <paramref name="afterNs"/>, or null.</summary>
+    public static long? FindEvent(ScopeTrace? trace, long afterNs, TriggerEdge edge)
+    {
+        switch (trace)
+        {
+            case EdgeTrace e:
+                for (var i = 1; i < e.Edges.Count; i++)
+                    if (e.Edges[i].T > afterNs && Matches(edge, e.Edges[i - 1].High, e.Edges[i].High))
+                        return e.Edges[i].T;
+                return null;
+            case RmtTrace r when r.Frame.EndNs is { } end && end > afterNs:
+                // A new LED frame: it starts with a rising edge, so any edge setting triggers on it.
+                return end - (long)FrameNs(r);
+            case SineTrace:
+                return afterNs + 1;   // free-running oscillator: every moment is an edge
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>True once the chip has run far enough past the event to fill the screen after the trigger point.</summary>
+    public static bool WindowFilled(ScopeTrace? trace, long eventNs, double windowNs) => trace switch
+    {
+        EdgeTrace e => e.NowNs >= eventNs + windowNs * 0.9,
+        _ => true,
+    };
+
+    /// <summary>Wall-clock trigger (Roll mode): first crossing of the logic thresholds after <paramref name="afterSeconds"/>.</summary>
+    public static double? FindEvent(IReadOnlyList<(double T, double V)> history, double afterSeconds, TriggerEdge edge)
+    {
+        bool? level = null;
+        foreach (var (t, v) in history)
+        {
+            bool? now = v > 2.0 ? true : v < 0.8 ? false : level;
+            if (now is null) continue;
+            if (level is { } before && t > afterSeconds && Matches(edge, before, now.Value)) return t;
+            level = now;
+        }
+        return null;
+    }
+
+    private static double FrameNs(RmtTrace r) =>
+        r.Frame.Items.Sum(i => (double)((i & 0x7fff) + ((i >> 16) & 0x7fff))) * r.Frame.TickNs;
+}

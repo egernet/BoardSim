@@ -36,6 +36,11 @@ public partial class MainWindow : Window
     private readonly Dictionary<Net, List<(double T, double V)>> _history = new();
     private readonly DispatcherTimer _scopeTimer;
     private Dictionary<int, ScopeTrace?>? _frozen;
+    private enum TrigMode { Auto, Normal, Single }
+    private TrigMode _trigMode = TrigMode.Auto;
+    private bool _armed;
+    private long _armNs;
+    private double _armWall;
 
     public MainWindow() : this(StartupOptions.Parse(Array.Empty<string>())) { }
 
@@ -95,7 +100,27 @@ public partial class MainWindow : Window
         Scope.Trace = probe => _frozen is not null ? _frozen.GetValueOrDefault(probe.Channel) : TraceFor(probe.Net);
         ScopeHold.Click += (_, _) =>
         {
-            _frozen = ScopeHold.IsChecked == true ? _probes.ToDictionary(p => p.Channel, p => TraceFor(p.Net)) : null;
+            if (ScopeHold.IsChecked == true)
+                _frozen = _probes.ToDictionary(p => p.Channel, p => TraceFor(p.Net));
+            else if (_trigMode == TrigMode.Single) Arm();     // releasing a single capture re-arms it
+            else { _frozen = null; Scope.TriggerAtNs = null; Scope.RollNow = null; }
+            Scope.InvalidateVisual();
+        };
+        TrigAuto.Click += (_, _) => SetTrigMode(TrigMode.Auto);
+        TrigNormal.Click += (_, _) => SetTrigMode(TrigMode.Normal);
+        TrigSingle.Click += (_, _) => SetTrigMode(TrigMode.Single);
+        ScopeEdge.Click += (_, _) =>
+        {
+            Scope.Edge = Scope.Edge switch { TriggerEdge.Rising => TriggerEdge.Falling, TriggerEdge.Falling => TriggerEdge.Either, _ => TriggerEdge.Rising };
+            ScopeEdge.Content = Scope.Edge switch { TriggerEdge.Rising => "↑ Rising", TriggerEdge.Falling => "↓ Falling", _ => "↕ Either" };
+            if (_armed) Arm();
+            Scope.InvalidateVisual();
+        };
+        Scope.TriggerSourceRequested += probe =>
+        {
+            Scope.TriggerChannel = probe.Channel;
+            Status.Text = $"Trigger on CH{probe.Channel} {probe.Net.DisplayName}";
+            if (_trigMode != TrigMode.Auto) Arm();
             Scope.InvalidateVisual();
         };
         ScopeSlower.Click += (_, _) => { Scope.Zoom(+1); UpdateScope(); };
@@ -107,6 +132,7 @@ public partial class MainWindow : Window
         {
             if (!ScopePanel.IsVisible) return;
             SampleProbes();
+            if (_armed) TriggerStep();
             if (ScopeHold.IsChecked != true) Scope.InvalidateVisual();
         });
         _scopeTimer.Start();
@@ -147,6 +173,16 @@ public partial class MainWindow : Window
             foreach (var spec in _options.Probes)
                 if (_sim is not null && ExpectationRule.Resolve(_sim.Circuit, spec) is { } probePin) ToggleProbe(probePin.Net, probePin.Pad);
             if (_options.ScopeLed) { SetScopeMode(ScopeMode.Run); _ = AutoSoon(); }
+            if (_options.Trigger is { } trig)
+            {
+                // e.g. "single:3:falling" - mode, channel, edge
+                var parts = trig.Split(':');
+                if (parts.Length > 1 && int.TryParse(parts[1], out var tch)) Scope.TriggerChannel = tch;
+                if (parts.Length > 2) Scope.Edge = Enum.Parse<TriggerEdge>(parts[2], true);
+                ScopeEdge.Content = Scope.Edge switch { TriggerEdge.Rising => "↑ Rising", TriggerEdge.Falling => "↓ Falling", _ => "↕ Either" };
+                _ = Task.Delay(9000).ContinueWith(_ => Dispatcher.UIThread.Post(() =>
+                    SetTrigMode(parts[0] == "normal" ? TrigMode.Normal : TrigMode.Single)));
+            }
             if (_options.Firmware is { } fw) FlashBuild(fw);
             else if (_options.Power) PowerOn();
             if (_options.Crystal is { } xs && xs.Split('=') is [var xref, var xmhz] && _sim?.Circuit.Part(xref) is { } xpart)
@@ -689,6 +725,76 @@ public partial class MainWindow : Window
         return null;
     }
 
+    private void SetTrigMode(TrigMode mode)
+    {
+        _trigMode = mode;
+        TrigAuto.IsChecked = mode == TrigMode.Auto;
+        TrigNormal.IsChecked = mode == TrigMode.Normal;
+        TrigSingle.IsChecked = mode == TrigMode.Single;
+        if (mode == TrigMode.Auto)
+        {
+            _armed = false;
+            _frozen = null;
+            Scope.TriggerAtNs = null;
+            Scope.RollNow = null;
+            Scope.State = null;
+            ScopeHold.IsChecked = false;
+        }
+        else Arm();
+        Scope.InvalidateVisual();
+    }
+
+    /// <summary>Waits for the next trigger event from now on (chip time and wall clock).</summary>
+    private void Arm()
+    {
+        if (Scope.TriggerChannel == 0 || _probes.All(p => p.Channel != Scope.TriggerChannel))
+            Scope.TriggerChannel = _probes.OrderBy(p => p.Channel).FirstOrDefault()?.Channel ?? 0;
+        _armNs = _emu?.Read(e => e.ChipTimeNs) ?? 0;
+        _armWall = Environment.TickCount64 / 1000.0;
+        _armed = true;
+        ScopeHold.IsChecked = false;
+        if (_trigMode == TrigMode.Single) { _frozen = null; Scope.TriggerAtNs = null; Scope.RollNow = null; }
+        Scope.State = Scope.TriggerChannel == 0 ? "Waiting · clip on a probe" : $"Armed · CH{Scope.TriggerChannel} {EdgeName()}";
+    }
+
+    private string EdgeName() => Scope.Edge switch { TriggerEdge.Rising => "↑", TriggerEdge.Falling => "↓", _ => "↕" };
+
+    /// <summary>Checks for the trigger event; once the screen after it is filled, captures all channels.</summary>
+    private void TriggerStep()
+    {
+        var probe = _probes.FirstOrDefault(p => p.Channel == Scope.TriggerChannel);
+        if (probe is null) { Scope.State = "Waiting · clip on a probe"; return; }
+        var window = Scope.PerDiv * 10;
+        string when;
+        if (Scope.Mode == ScopeMode.Run)
+        {
+            var trace = TraceFor(probe.Net);
+            if (Trigger.FindEvent(trace, _armNs, Scope.Edge) is not { } ev) return;
+            if (!Trigger.WindowFilled(trace, ev, window * 1e9)) return;
+            _frozen = _probes.ToDictionary(p => p.Channel, p => TraceFor(p.Net));
+            Scope.TriggerAtNs = ev;
+            _armNs = ev + (long)(window * 1e9 * 0.9);         // Normal: the next capture comes after this screen
+            when = $"chip time {ScopeView.FormatTime(ev / 1e9)}";
+        }
+        else
+        {
+            if (!_history.TryGetValue(probe.Net, out var h) || Trigger.FindEvent(h, _armWall, Scope.Edge) is not { } ev) return;
+            var now = Environment.TickCount64 / 1000.0;
+            if (now < ev + window * 0.9) return;
+            Scope.RollNow = ev + window * 0.9;
+            _armWall = ev + window * 0.9;
+            when = DateTime.Now.AddSeconds(ev - now).ToString("HH:mm:ss.fff");
+        }
+        Scope.State = $"Triggered · CH{probe.Channel} {EdgeName()} · {when}";
+        if (_trigMode == TrigMode.Single)
+        {
+            _armed = false;
+            ScopeHold.IsChecked = true;
+            Status.Text = $"Single capture on CH{probe.Channel} {probe.Net.DisplayName} ({when}). Press Single again to re-arm.";
+        }
+        Scope.InvalidateVisual();
+    }
+
     /// <summary>AUTO: a time base showing about four periods of the probe's signal, triggered on it.</summary>
     private void AutoScope(Probe? probe)
     {
@@ -700,6 +806,7 @@ public partial class MainWindow : Window
             SetScopeMode(ScopeMode.Run);
             Scope.SetPerDiv(perDiv);
             Scope.TriggerChannel = p.Channel;
+            if (_trigMode != TrigMode.Auto) Arm();
             UpdateScope();
             Status.Text = $"CH{p.Channel} {p.Net.DisplayName}: {ScopeView.FormatHz(m.Hz!.Value)} - {ScopeView.FormatTime(perDiv)}/div, triggered on CH{p.Channel}";
             return;

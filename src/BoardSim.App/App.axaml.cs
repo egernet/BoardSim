@@ -27,7 +27,7 @@ public partial class App : Application
 /// [--net NAME] [--simulate] [--drive U1.GPIO7=H ...] [--firmware build-folder] [--power] [--wait ms] [--probe U1.GPIO7 ...] [--scope led] [--crystal Y1=26]
 /// </summary>
 public sealed record StartupOptions(string? BoardPath, string? Screenshot, int? SelectFinding, bool Back, bool Layers, string? Net,
-    bool Simulate, IReadOnlyList<(string Pin, BoardSim.Core.Simulation.PinDrive Drive)> Drives, string? Firmware, int Wait, bool Power, IReadOnlyList<string> Probes, bool ScopeLed, string? Crystal)
+    bool Simulate, IReadOnlyList<(string Pin, BoardSim.Core.Simulation.PinDrive Drive)> Drives, string? Firmware, int Wait, bool Power, IReadOnlyList<string> Probes, bool ScopeLed, string? Crystal, string? Trigger)
 {
     public static StartupOptions Parse(string[] args)
     {
@@ -38,7 +38,7 @@ public sealed record StartupOptions(string? BoardPath, string? Screenshot, int? 
         var drives = new List<(string, BoardSim.Core.Simulation.PinDrive)>();
         var probes = new List<string>();
         var scopeLed = false;
-        string? crystal = null;
+        string? crystal = null, trigger = null;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -55,6 +55,7 @@ public sealed record StartupOptions(string? BoardPath, string? Screenshot, int? 
                 case "--probe" when i + 1 < args.Length: probes.Add(args[++i]); break;
                 case "--scope" when i + 1 < args.Length: scopeLed = args[++i] == "led"; break;
                 case "--crystal" when i + 1 < args.Length: crystal = args[++i]; break;
+                case "--trigger" when i + 1 < args.Length: trigger = args[++i]; break;
                 case "--drive" when i + 1 < args.Length:
                     var kv = args[++i].Split('=');
                     drives.Add((kv[0], kv[1].ToUpperInvariant() switch
@@ -68,6 +69,6 @@ public sealed record StartupOptions(string? BoardPath, string? Screenshot, int? 
                 default: if (!args[i].StartsWith("--")) board = args[i]; break;
             }
         }
-        return new StartupOptions(board, shot, select, back, layers, net, simulate, drives, firmware, wait, power, probes, scopeLed, crystal);
+        return new StartupOptions(board, shot, select, back, layers, net, simulate, drives, firmware, wait, power, probes, scopeLed, crystal, trigger);
     }
 }

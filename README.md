@@ -32,7 +32,7 @@ and 4.8 V on the connector.</i></p>
 | ⚡ **Simulates the circuit** | A DC solver computes the real voltage on every net: dividers, pull-ups, LEDs with their forward voltage, a mux routing a signal. Copper is coloured by voltage, LEDs glow by their current. |
 | 🧠 **Runs real firmware** | The board's ESP32-C3 runs in an emulator (a QEMU fork). Its pins drive the simulation; buttons on the board reach its inputs. |
 | 🔌 **Has a USB port** | `idf.py -p rfc2217://localhost:4141 flash monitor` - esptool resets the emulated chip into download mode and flashes it, like a board on your desk. |
-| 📈 **Has an oscilloscope** | Clip up to four probes on any net: GPIO signals from the firmware at the voltage that net really has, LED data with decoded bits, crystals. Frequency, duty cycle and levels are measured, and AUTO picks the time base. |
+| 📈 **Has an oscilloscope** | Clip up to four probes on any net: GPIO signals from the firmware at the voltage that net really has, LED data with decoded bits, crystals. Frequency, duty cycle and levels are measured, AUTO picks the time base, and Normal/Single triggers capture an edge and hold it. |
 | 💡 **Shows LED strings** | WS2812 data is decoded and followed through buffers and multiplexers to the connector it actually reaches. |
 | 📶 **Has Wi-Fi** | Add one component and the firmware's own Wi-Fi code connects in BoardSim, with real internet through your computer. |
 | 🥧 **Talks to a Raspberry Pi** | The pins are open on the network: `nc`, a Python library in the style of `RPi.GPIO`, or a bridge to a real Pi's pins. |
@@ -61,7 +61,8 @@ on its four LED strings.
   click the red finding: GPIO8 drives an LED to ground, which kept the chip out of download mode.
 - **Probe** → click GPIO4 and GPIO7 on U1, pin 2 of J5 and a pin of the crystal Y1, then **AUTO**
   on a channel: 27 Hz on the mux select line, 833 kHz LED data (3.3 V at the chip, 4.8 V on the
-  connector) and 40 MHz on the crystal.
+  connector) and 40 MHz on the crystal. Click a channel's number to trigger on it, pick the edge,
+  and press **Single**: the scope waits for the next edge, captures it and holds.
 - Hold **SW1** (BOOT) with the mouse and watch IO9 go to 0 V.
 - Click the **crystal Y1** and pick 26 or 16 MHz, then look at the LED strings and the **Console** tab.
 - **Bottom** shows the other side; **Layers** shows the copper layers in colour.

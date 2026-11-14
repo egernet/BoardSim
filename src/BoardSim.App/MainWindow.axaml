@@ -70,11 +70,20 @@
                             ToolTip.Tip="The chip's own time, triggered: GPIO edges, LED data, crystals"/>
               <ToggleButton x:Name="ScopeRoll" Classes="seg in" Content="Roll" CornerRadius="0,6,6,0"
                             ToolTip.Tip="Wall-clock time: the last seconds, for slow signals and pins driven from outside"/>
-              <Button x:Name="ScopeAuto" Classes="tool" Content="Auto" Padding="10,2" Margin="10,0,0,0"
+              <Button x:Name="ScopeAuto" Classes="tool" Content="Autoset" Padding="10,2" Margin="10,0,0,0"
                       ToolTip.Tip="Pick a time base for the first periodic signal and trigger on it (each channel also has its own AUTO)"/>
               <Button x:Name="ScopeSlower" Classes="tool" Content="−" Padding="10,2" Margin="10,0,0,0" ToolTip.Tip="More time per division"/>
               <TextBlock x:Name="ScopeTime" VerticalAlignment="Center" FontFamily="Menlo, Consolas, monospace" FontSize="12" MinWidth="80" TextAlignment="Center"/>
               <Button x:Name="ScopeFaster" Classes="tool" Content="+" Padding="10,2" ToolTip.Tip="Less time per division"/>
+              <TextBlock Text="Trigger" Classes="muted" FontSize="12" VerticalAlignment="Center" Margin="12,0,2,0"/>
+              <Button x:Name="ScopeEdge" Classes="tool" Content="↑ Rising" Padding="10,2"
+                      ToolTip.Tip="Which edge triggers: rising, falling or either. Click a channel's number to trigger on it."/>
+              <ToggleButton x:Name="TrigAuto" Classes="seg in" Content="Auto" IsChecked="True" CornerRadius="6,0,0,6"
+                            ToolTip.Tip="Always running"/>
+              <ToggleButton x:Name="TrigNormal" Classes="seg in" Content="Normal" CornerRadius="0"
+                            ToolTip.Tip="Updates only when the trigger fires; the last capture stays on screen meanwhile"/>
+              <ToggleButton x:Name="TrigSingle" Classes="seg in" Content="Single" CornerRadius="0,6,6,0"
+                            ToolTip.Tip="Waits for the next trigger, captures it and holds (press again to re-arm)"/>
               <ToggleButton x:Name="ScopeHold" Classes="seg in" Content="Hold" Margin="10,0,0,0" CornerRadius="6"/>
               <Button x:Name="ScopeClear" Classes="tool" Content="Remove probes" Padding="10,2" Margin="10,0,0,0"/>
             </StackPanel>

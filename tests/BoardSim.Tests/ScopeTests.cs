@@ -62,3 +62,38 @@ public class ScopeTests
     [InlineData(3e-7, 5e-7)]
     public void SnapsToOneTwoFive(double raw, double expected) => Assert.Equal(expected, Measurement.Snap(raw), 12);
 }
+
+public class TriggerTests
+{
+    private static EdgeTrace Square(long now) =>
+        new(Enumerable.Range(0, 20).Select(i => ((long)i * 500, i % 2 == 1)).ToList(), 3.3, 0, now);
+
+    [Theory]
+    [InlineData(TriggerEdge.Rising, 2100, 2500)]   // edges at 500, 1500, 2500 ... are rising
+    [InlineData(TriggerEdge.Falling, 2100, 3000)]
+    [InlineData(TriggerEdge.Either, 2100, 2500)]
+    public void FindsTheFirstEdgeAfterArming(TriggerEdge edge, long armed, long expected) =>
+        Assert.Equal(expected, Trigger.FindEvent(Square(10_000), armed, edge));
+
+    [Fact]
+    public void WaitsUntilTheScreenAfterTheTriggerIsFilled()
+    {
+        Assert.False(Trigger.WindowFilled(Square(3000), 2500, 1000));
+        Assert.True(Trigger.WindowFilled(Square(3500), 2500, 1000));
+    }
+
+    [Fact]
+    public void NoEventOnASteadyLine()
+    {
+        Assert.Null(Trigger.FindEvent(new DcTrace(3.3), 0, TriggerEdge.Either));
+        Assert.Null(Trigger.FindEvent(Square(10_000), 20_000, TriggerEdge.Rising));
+    }
+
+    [Fact]
+    public void TriggersOnWallClockHistory()
+    {
+        var h = new List<(double, double)> { (1.0, 0), (1.5, 3.3), (2.0, 0), (2.5, 3.3) };
+        Assert.Equal(2.5, Trigger.FindEvent(h, 1.6, TriggerEdge.Rising));
+        Assert.Equal(2.0, Trigger.FindEvent(h, 1.6, TriggerEdge.Falling));
+    }
+}

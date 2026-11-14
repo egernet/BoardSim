@@ -49,8 +49,18 @@ public sealed class ScopeView : Control
     /// <summary>Channel the Run view triggers on (rising edge); 0 = none.</summary>
     public int TriggerChannel { get; set; }
     public double PerDiv => Mode == ScopeMode.Run ? Steps[StepIndex] : Steps[RollStepIndex];
+    public TriggerEdge Edge { get; set; } = TriggerEdge.Rising;
+    /// <summary>A captured trigger (Normal/Single): the screen starts here instead of following the signal.</summary>
+    public long? TriggerAtNs { get; set; }
+    /// <summary>Roll mode, captured: the wall-clock moment the screen ends at.</summary>
+    public double? RollNow { get; set; }
+    /// <summary>Shown top right of the screen: Armed, Triggered...</summary>
+    public string? State { get; set; }
 
     public event Action<Probe>? AutoRequested;
+    /// <summary>The user clicked a channel's number: trigger on that channel.</summary>
+    public event Action<Probe>? TriggerSourceRequested;
+    private readonly List<(Rect Area, Probe Probe)> _badges = new();
 
     private static double[] BuildSteps()
     {
@@ -97,11 +107,14 @@ public sealed class ScopeView : Control
         var p = e.GetPosition(this);
         foreach (var (area, probe) in _autoButtons)
             if (area.Contains(p)) { AutoRequested?.Invoke(probe); e.Handled = true; return; }
+        foreach (var (area, probe) in _badges)
+            if (area.Contains(p)) { TriggerSourceRequested?.Invoke(probe); e.Handled = true; return; }
     }
 
     public override void Render(DrawingContext ctx)
     {
         _autoButtons.Clear();
+        _badges.Clear();
         var bounds = new Rect(Bounds.Size);
         ctx.DrawRectangle(new SolidColorBrush(Color.Parse("#05080b")), new Pen(new SolidColorBrush(Color.Parse("#2a313d")), 1), bounds, 12, 12);
         const double right = 14, top = 10, bottom = 24;
@@ -170,19 +183,35 @@ public sealed class ScopeView : Control
 
         var axis = Mode == ScopeMode.Roll
             ? $"Roll · {FormatTime(PerDiv)}/div · last {FormatTime(window)} of wall-clock time"
-            : $"Run · {FormatTime(PerDiv)}/div · chip time" + (TriggerChannel > 0 ? $" · trigger CH{TriggerChannel} rising" : " · free running");
+            : $"Run · {FormatTime(PerDiv)}/div · chip time" + (TriggerChannel > 0 ? $" · trigger CH{TriggerChannel} {Edge.ToString().ToLowerInvariant()}" : " · free running");
         ctx.DrawText(Text(axis, 11, "#8b93a1", Font), new Point(screen.X, screen.Bottom + 5));
-        var end = Text(Mode == ScopeMode.Roll ? "now" : "+" + FormatTime(window * 0.9), 11, "#5b6270", Mono);
-        ctx.DrawText(end, new Point(screen.Right - end.Width, screen.Bottom + 5));
+        var endLabel = Text(Mode == ScopeMode.Roll ? (RollNow is null ? "now" : "captured") : "+" + FormatTime(window * 0.9), 11, "#5b6270", Mono);
+        ctx.DrawText(endLabel, new Point(screen.Right - endLabel.Width, screen.Bottom + 5));
+        if (State is { Length: > 0 } st)
+        {
+            var armed = st.StartsWith("Armed") || st.StartsWith("Waiting");
+            var tag = Text(st, 11, armed ? "#ffb547" : "#41d98a", Font);
+            var r = new Rect(screen.Right - tag.Width - 18, screen.Y + 6, tag.Width + 12, 20);
+            ctx.DrawRectangle(new SolidColorBrush(Color.Parse("#0b0f14"), 0.9), new Pen(new SolidColorBrush(Color.Parse(armed ? "#ffb547" : "#41d98a")), 1), r, 6, 6);
+            ctx.DrawText(tag, new Point(r.X + 6, r.Y + (r.Height - tag.Height) / 2));
+        }
     }
 
     private void DrawLabel(DrawingContext ctx, Probe p, ScopeTrace? trace, double y0, double laneH)
     {
         var color = p.Color;
         var mid = y0 + laneH / 2;
-        ctx.DrawRectangle(new SolidColorBrush(color), null, new Rect(12, mid - 11, 30, 22), 5, 5);
+        var badge = new Rect(12, mid - 11, 30, 22);
+        ctx.DrawRectangle(new SolidColorBrush(color), null, badge, 5, 5);
         var ch = Text($"{p.Channel}", 12, "#05080b", Font);
         ctx.DrawText(ch, new Point(27 - ch.Width / 2, mid - ch.Height / 2));
+        if (TriggerChannel == p.Channel)
+        {
+            // Trigger source: a small "T" with the edge under the number.
+            var tg = Text(Edge switch { TriggerEdge.Rising => "T↑", TriggerEdge.Falling => "T↓", _ => "T↕" }, 10, "#e6e9ef", Font);
+            ctx.DrawText(tg, new Point(27 - tg.Width / 2, mid + 12));
+        }
+        _badges.Add((badge, p));
 
         // Three lines left of the AUTO button: name, frequency, levels and source.
         const double textX = 50;
@@ -232,6 +261,7 @@ public sealed class ScopeView : Control
     /// <summary>Chip time where the screen starts: just before the trigger channel's latest full-screen rising edge.</summary>
     private double WindowStart(List<ScopeTrace?> traces, double window)
     {
+        if (TriggerAtNs is { } fixedAt) return fixedAt / 1e9 - window * 0.1;
         var index = Probes.ToList().FindIndex(p => p.Channel == TriggerChannel);
         var trace = index >= 0 ? traces[index] : null;
         var windowNs = window * 1e9;
@@ -242,7 +272,7 @@ public sealed class ScopeView : Control
                 long? best = null;
                 for (var i = e.Edges.Count - 1; i > 0; i--)
                 {
-                    if (!e.Edges[i].High || e.Edges[i - 1].High) continue;
+                    if (!Trigger.Matches(Edge, e.Edges[i - 1].High, e.Edges[i].High)) continue;
                     best ??= e.Edges[i].T;
                     if (e.Edges[i].T + windowNs * 0.9 <= e.NowNs) { best = e.Edges[i].T; break; }
                 }
@@ -378,10 +408,12 @@ public sealed class ScopeView : Control
         var points = new List<(double, double)>();
         var history = History?.Invoke(p.Net);
         if (history is null || history.Count == 0) return points;
-        var start = Environment.TickCount64 / 1000.0 - window;
+        var end = RollNow ?? Environment.TickCount64 / 1000.0;
+        var start = end - window;
         double? last = null;
         foreach (var (t, v) in history)
         {
+            if (t > end) break;
             if (t < start) { last = v; continue; }
             var x = t - start;
             if (last is { } lv) points.Add((x, lv));
