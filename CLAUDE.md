@@ -18,6 +18,11 @@ released for Windows, macOS and Linux, so UI text and messages are English.
     (`analogMux`, `buffer`, `mcu`) makes the part act in the simulation.
   - `Simulation/` - DC simulation: nodal solve, diodes on/off iteration,
     digital parts re-evaluated until the circuit settles.
+  - `Emulation/` - runs ESP32-C3 firmware in BoardSim's QEMU fork
+    (`../qemu-esp`, branch `boardsim`): `QemuSession` (process, pin bridge,
+    UART), `EmulatedBoard` (pins into the simulation, inputs back, LED data
+    traced to the connector it reaches), `Ws2812` decoding, `Firmware`
+    (flash image from an ESP-IDF build folder, finding QEMU).
 - `src/BoardSim.App` - Avalonia 11.2.3 (pinned; the template wants 12, which
   has API changes). `Controls/BoardView` draws, `Rendering/BoardScene` builds
   the geometry once per board.
@@ -28,7 +33,7 @@ released for Windows, macOS and Linux, so UI text and messages are English.
 ## Screenshots without a display session
 
 ```bash
-dotnet src/BoardSim.App/bin/Debug/net8.0/BoardSim.dll board.kicad_pcb --screenshot out.png [--select N] [--side back] [--layers] [--net NAME] [--simulate] [--drive U1.GPIO7=H]
+dotnet src/BoardSim.App/bin/Debug/net8.0/BoardSim.dll board.kicad_pcb --screenshot out.png [--select N] [--side back] [--layers] [--net NAME] [--simulate] [--drive U1.GPIO7=H] [--firmware build-folder --wait 14000]
 ```
 
 The window opens, renders, saves and closes.
@@ -43,8 +48,11 @@ v4: it is a reviewed board, so a hit there is usually a false positive.
 
 1. Done: DC logic simulation (mux, buffers, LEDs, switches, user-driven pins).
    Still open: WS2812 strings on the connectors, regulators turning rails on.
-2. ESP32-C3 in Espressif's QEMU, with its pins bridged into the simulation,
-   and a virtual serial port so `idf.py flash` works against it. QEMU lacks
-   RMT, GPIO matrix, Wi-Fi and USB Serial/JTAG for the C3; those need a fork.
+2. Done: ESP32-C3 firmware runs in the QEMU fork (GPIO, RMT, SAR ADC added),
+   drives the simulation and shows the LED strings. Wi-Fi cannot be emulated:
+   firmware needs a build that uses the emulated OpenCores Ethernet (Julelys:
+   CONFIG_JULELYS_QEMU). Still open: a virtual serial port so `idf.py flash`
+   works against the emulated chip, and shipping QEMU builds for Windows,
+   macOS and Linux.
 3. Physical board check: test firmware reads pins back over USB and BoardSim
    compares them with the netlist.

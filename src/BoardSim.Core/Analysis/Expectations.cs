@@ -22,6 +22,8 @@ public sealed class Expectations
     }
 
     public string? Description { get; set; }
+    /// <summary>Byte order of the LED strings on the connectors: "GRB" (WS2812 default), "RGB", "GRBW"...</summary>
+    public string? LedOrder { get; set; }
     public List<Connection> Connections { get; set; } = new();
     public string Source { get; private set; } = "";
 

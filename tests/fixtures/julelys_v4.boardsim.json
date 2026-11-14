@@ -1,6 +1,8 @@
 {
   // What the Julelys firmware (julelys_esp32) expects the board to connect.
   "description": "Julelys firmware pins: main.cpp and components/led_controller/led_controller.cpp",
+  // The 2026 fairy strings take their bytes in RGB order (CONFIG_JULELYS_LED_COLOR_ORDER_RGB).
+  "ledOrder": "RGB",
   "connections": [
     { "from": "U1.GPIO7", "to": "U2.Z",  "why": "LED data from the RMT, through level shifter U6" },
     { "from": "U1.GPIO4", "to": "U2.S0", "why": "mux select bit 0 (changeChannel)" },
