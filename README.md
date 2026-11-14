@@ -60,3 +60,8 @@ dotnet test
 The tests load Julelys v4 (KiCad 10) and v3.1 (KiCad 7) and compare pad
 positions and nets with KiCad's own IPC-D-356 export. On v3.1 the rules must
 find the faults that v4 fixed; v4 must be clean.
+
+## License
+
+MIT. The test boards in `tests/fixtures` are Julelys v4 and v3.1 from
+[egernet/julelys_pcb_v2](https://github.com/egernet/julelys_pcb_v2).
