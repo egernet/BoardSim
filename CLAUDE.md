@@ -32,10 +32,18 @@ released for Windows, macOS and Linux, so UI text and messages are English.
 - `tests/` - xunit, fixtures are Julelys v4 and v3.1 plus KiCad's IPC-D-356
   exports of them.
 
+## Packaging (macOS)
+
+`scripts/package-macos.sh <version>` builds `dist/BoardSim.app` (self-contained
+.NET, QEMU from `../qemu-esp` bundled with its dylibs by
+`scripts/bundle-qemu-macos.sh`, the `examples/` folder) and a zip for a GitHub
+release. The app is ad-hoc signed, not notarised. `examples/julelys-v4` holds
+the board and a prebuilt Julelys firmware (CONFIG_JULELYS_QEMU).
+
 ## Screenshots without a display session
 
 ```bash
-dotnet src/BoardSim.App/bin/Debug/net8.0/BoardSim.dll board.kicad_pcb --screenshot out.png [--select N] [--side back] [--layers] [--net NAME] [--simulate] [--drive U1.GPIO7=H] [--firmware build-folder | --power] [--wait 14000]
+dotnet src/BoardSim.App/bin/Debug/net8.0/BoardSim.dll board.kicad_pcb --screenshot out.png [--select N] [--side back] [--layers] [--net NAME] [--simulate] [--drive U1.GPIO7=H] [--firmware build-folder | --power] [--wait 14000] [--probe U1.GPIO7] [--scope led] [--crystal Y1=26]
 ```
 
 The window opens, renders, saves and closes.

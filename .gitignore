@@ -485,3 +485,4 @@ $RECYCLE.BIN/
 
 # BoardSim
 .DS_Store
+dist/
