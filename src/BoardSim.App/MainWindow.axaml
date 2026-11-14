@@ -1,0 +1,225 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:c="using:BoardSim.App.Controls"
+        xmlns:vm="using:BoardSim.App"
+        x:Class="BoardSim.App.MainWindow"
+        Title="BoardSim"
+        Icon="avares://BoardSim/Assets/logo.png"
+        Width="1480" Height="920" MinWidth="980" MinHeight="620"
+        Background="{StaticResource Bg}"
+        DragDrop.AllowDrop="True">
+
+  <Grid RowDefinitions="60,*,30">
+
+    <!-- Header -->
+    <Border Grid.Row="0" Background="#12151b" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1">
+      <Grid ColumnDefinitions="Auto,*,Auto" Margin="18,0">
+        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+          <Image Source="avares://BoardSim/Assets/logo.png" Width="34" Height="34"/>
+          <StackPanel VerticalAlignment="Center" Spacing="0">
+            <TextBlock Text="BoardSim" FontSize="17" FontWeight="Bold"/>
+            <TextBlock x:Name="BoardName" Classes="muted" FontSize="12" Text="No board loaded"/>
+          </StackPanel>
+        </StackPanel>
+
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal" Spacing="0">
+            <ToggleButton x:Name="TopButton" Classes="tool" Content="Top" IsChecked="True" CornerRadius="8,0,0,8"/>
+            <ToggleButton x:Name="BottomButton" Classes="tool" Content="Bottom" CornerRadius="0,8,8,0"/>
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="0">
+            <ToggleButton x:Name="RealButton" Classes="tool" Content="Realistic" IsChecked="True" CornerRadius="8,0,0,8"/>
+            <ToggleButton x:Name="LayersButton" Classes="tool" Content="Layers" CornerRadius="0,8,8,0"/>
+          </StackPanel>
+          <ToggleButton x:Name="SimButton" Classes="tool sim" ToolTip.Tip="Simulate the board: drive pins, press buttons, watch the voltages">
+            <StackPanel Orientation="Horizontal" Spacing="7">
+              <Path Data="M0,0 L9,5.5 L0,11 Z" Fill="#41d98a" VerticalAlignment="Center"/>
+              <TextBlock Text="Simulate" VerticalAlignment="Center"/>
+            </StackPanel>
+          </ToggleButton>
+          <Button x:Name="FirmwareButton" Classes="tool" ToolTip.Tip="Power the board's ESP32-C3 (emulated in QEMU). It keeps its flash, and its USB port takes idf.py flash.">
+            <StackPanel Orientation="Horizontal" Spacing="7">
+              <Path x:Name="FirmwareIcon" Data="M5,0 L5,5 M2,2 A4.5,4.5 0 1 0 8,2" Stroke="#3bd1ff" StrokeThickness="1.6" StrokeLineCap="Round" VerticalAlignment="Center"/>
+              <TextBlock x:Name="FirmwareLabel" Text="Power on" VerticalAlignment="Center"/>
+            </StackPanel>
+          </Button>
+          <Button x:Name="FlashButton" Classes="tool" Content="Flash build…" ToolTip.Tip="Write an ESP-IDF build folder into the chip's flash and boot it"/>
+          <ToggleButton x:Name="ProbeButton" Classes="tool" ToolTip.Tip="Clip oscilloscope probes onto nets: click pads on the board">
+            <StackPanel Orientation="Horizontal" Spacing="7">
+              <Path Data="M1,10 L4,3 L7,8 L10,1" Stroke="#ffd60a" StrokeThickness="1.6" StrokeJoin="Round" VerticalAlignment="Center"/>
+              <TextBlock Text="Probe" VerticalAlignment="Center"/>
+            </StackPanel>
+          </ToggleButton>
+          <ToggleButton x:Name="PartsButton" Classes="tool" Content="Parts" IsChecked="True"/>
+          <Button x:Name="FitButton" Classes="tool" Content="Fit" ToolTip.Tip="Fit the board (F)"/>
+          <Button x:Name="OpenButton" Classes="primary" Content="Open board…"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- Board and side panel -->
+    <Grid Grid.Row="1" ColumnDefinitions="*,420">
+      <Grid RowDefinitions="*,Auto,Auto">
+        <c:BoardView x:Name="Board"/>
+        <c:StringsView x:Name="Strings" Grid.Row="1" Margin="16,0,16,12" Height="0" IsHitTestVisible="False"/>
+        <Border x:Name="ScopePanel" Grid.Row="2" Margin="16,0,16,14" IsVisible="False">
+          <Grid RowDefinitions="Auto,240">
+            <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,6">
+              <TextBlock Text="Oscilloscope" FontWeight="SemiBold" VerticalAlignment="Center" Margin="2,0,10,0"/>
+              <ToggleButton x:Name="ScopeRun" Classes="seg in" Content="Run" IsChecked="True" CornerRadius="6,0,0,6"
+                            ToolTip.Tip="The chip's own time, triggered: GPIO edges, LED data, crystals"/>
+              <ToggleButton x:Name="ScopeRoll" Classes="seg in" Content="Roll" CornerRadius="0,6,6,0"
+                            ToolTip.Tip="Wall-clock time: the last seconds, for slow signals and pins driven from outside"/>
+              <Button x:Name="ScopeAuto" Classes="tool" Content="Auto" Padding="10,2" Margin="10,0,0,0"
+                      ToolTip.Tip="Pick a time base for the first periodic signal and trigger on it (each channel also has its own AUTO)"/>
+              <Button x:Name="ScopeSlower" Classes="tool" Content="−" Padding="10,2" Margin="10,0,0,0" ToolTip.Tip="More time per division"/>
+              <TextBlock x:Name="ScopeTime" VerticalAlignment="Center" FontFamily="Menlo, Consolas, monospace" FontSize="12" MinWidth="80" TextAlignment="Center"/>
+              <Button x:Name="ScopeFaster" Classes="tool" Content="+" Padding="10,2" ToolTip.Tip="Less time per division"/>
+              <ToggleButton x:Name="ScopeHold" Classes="seg in" Content="Hold" Margin="10,0,0,0" CornerRadius="6"/>
+              <Button x:Name="ScopeClear" Classes="tool" Content="Remove probes" Padding="10,2" Margin="10,0,0,0"/>
+            </StackPanel>
+            <c:ScopeView x:Name="Scope" Grid.Row="1"/>
+          </Grid>
+        </Border>
+        <Border x:Name="EmptyState" HorizontalAlignment="Center" VerticalAlignment="Center"
+                Background="#151920" BorderBrush="#2a313d" BorderThickness="1" CornerRadius="16" Padding="36,30">
+          <StackPanel Spacing="10" HorizontalAlignment="Center">
+            <Image Source="avares://BoardSim/Assets/logo.png" Width="72" Height="72" HorizontalAlignment="Center"/>
+            <TextBlock Text="Open a KiCad board" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+            <TextBlock Classes="muted" TextAlignment="Center" MaxWidth="360" TextWrapping="Wrap"
+                       Text="Drop a .kicad_pcb file here, or use Open board. BoardSim checks every connection against its part models."/>
+            <Button x:Name="ExampleButton" Classes="primary" HorizontalAlignment="Center" Margin="0,10,0,0"
+                    Content="Try the Julelys example" ToolTip.Tip="Opens a real board, flashes its firmware into the emulated ESP32-C3 and powers it on"/>
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <Border Grid.Column="1" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1,0,0,0">
+        <Grid RowDefinitions="Auto,*">
+          <!-- Summary -->
+          <Border Margin="16,16,16,8" Background="{StaticResource Panel2}" CornerRadius="14" Padding="16,14">
+            <Grid ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto">
+              <StackPanel Grid.Column="0" Spacing="2">
+                <TextBlock x:Name="ErrorCount" Text="–" FontSize="26" FontWeight="Bold" Foreground="{StaticResource ErrorBrush}"/>
+                <TextBlock Classes="muted" FontSize="12" Text="Errors"/>
+              </StackPanel>
+              <StackPanel Grid.Column="1" Spacing="2">
+                <TextBlock x:Name="WarningCount" Text="–" FontSize="26" FontWeight="Bold" Foreground="{StaticResource WarningBrush}"/>
+                <TextBlock Classes="muted" FontSize="12" Text="Warnings"/>
+              </StackPanel>
+              <StackPanel Grid.Column="2" Spacing="2">
+                <TextBlock x:Name="InfoCount" Text="–" FontSize="26" FontWeight="Bold" Foreground="{StaticResource InfoBrush}"/>
+                <TextBlock Classes="muted" FontSize="12" Text="Notes"/>
+              </StackPanel>
+              <TextBlock x:Name="BoardStats" Grid.Row="1" Grid.ColumnSpan="3" Classes="muted" FontSize="12" Margin="0,10,0,0" TextWrapping="Wrap"/>
+            </Grid>
+          </Border>
+
+          <TabControl x:Name="Tabs" Grid.Row="1" Margin="8,0,8,0" Padding="8,6,8,8">
+            <TabItem Header="Findings">
+              <Panel>
+              <Border x:Name="AllClear" IsVisible="False" VerticalAlignment="Top" Margin="0,6,0,0" Padding="16,14"
+                      CornerRadius="12" Background="#12301f" BorderBrush="#1f5a37" BorderThickness="1">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="No problems found" FontWeight="SemiBold" FontSize="15" Foreground="{StaticResource OkBrush}"/>
+                  <TextBlock x:Name="AllClearDetail" TextWrapping="Wrap" FontSize="12" Classes="muted"/>
+                </StackPanel>
+              </Border>
+              <ListBox x:Name="FindingsList" SelectionMode="Single">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:FindingItem">
+                    <Border Padding="12,10" CornerRadius="10" BorderThickness="1" BorderBrush="#232a35" Background="#171c24">
+                      <Grid ColumnDefinitions="Auto,*">
+                        <Border Width="8" Height="8" CornerRadius="4" Background="{Binding Color}" VerticalAlignment="Top" Margin="0,6,10,0"/>
+                        <StackPanel Grid.Column="1" Spacing="4">
+                          <TextBlock Text="{Binding Title}" TextWrapping="Wrap" FontWeight="SemiBold" FontSize="13"/>
+                          <TextBlock Text="{Binding Detail}" TextWrapping="Wrap" FontSize="12" Classes="muted" IsVisible="{Binding IsSelected}"/>
+                          <TextBlock Text="{Binding Rule}" FontSize="11" Foreground="{Binding Color}" Opacity="0.85"/>
+                        </StackPanel>
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+              </Panel>
+            </TabItem>
+            <TabItem Header="Inspector">
+              <ScrollViewer>
+                <StackPanel x:Name="Inspector" Spacing="10" Margin="4,8">
+                  <TextBlock Classes="muted" TextWrapping="Wrap" Text="Click a pad on the board to see its pin, net and everything else on the net."/>
+                </StackPanel>
+              </ScrollViewer>
+            </TabItem>
+            <TabItem Header="Simulate" x:Name="SimTab">
+              <ScrollViewer>
+                <StackPanel x:Name="SimPanel" Spacing="10" Margin="4,8">
+                  <TextBlock Classes="muted" TextWrapping="Wrap" Text="Press Simulate to power the board. Then drive the chip's pins and hold the buttons; the copper shows the voltage on every net."/>
+                </StackPanel>
+              </ScrollViewer>
+            </TabItem>
+            <TabItem Header="Console" x:Name="ConsoleTab">
+              <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="0,6,0,0">
+                <Border Background="#171c24" CornerRadius="10" Padding="12,10" Margin="0,0,0,8">
+                  <StackPanel Spacing="6">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                      <TextBlock Text="USB" FontWeight="Bold" FontSize="12" Foreground="#3bd1ff" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                      <SelectableTextBlock x:Name="PortUrl" Grid.Column="1" Text="Power on the chip to get its USB port" FontFamily="Menlo, Consolas, monospace" FontSize="12" VerticalAlignment="Center"/>
+                      <Button x:Name="CopyPort" Grid.Column="2" Classes="tool" Content="Copy" Padding="10,3" FontSize="11" Margin="6,0,0,0"/>
+                      <Button x:Name="ResetChip" Grid.Column="3" Classes="tool" Content="Reset" Padding="10,3" FontSize="11" Margin="6,0,0,0" ToolTip.Tip="Press the chip's reset (EN)"/>
+                    </Grid>
+                    <SelectableTextBlock x:Name="PortHint" FontSize="11" Foreground="#8b93a1" TextWrapping="Wrap"/>
+                  </StackPanel>
+                </Border>
+                <Border Grid.Row="1" Background="#171c24" CornerRadius="10" Padding="12,10" Margin="0,0,0,8" x:Name="GpioCard">
+                  <StackPanel Spacing="6">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                      <TextBlock Text="GPIO" FontWeight="Bold" FontSize="12" Foreground="#ffd60a" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                      <SelectableTextBlock x:Name="GpioUrl" Grid.Column="1" FontFamily="Menlo, Consolas, monospace" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                      <ToggleButton x:Name="GpioLan" Grid.Column="2" Classes="seg in" Content="Allow from network" CornerRadius="6" Margin="6,0,0,0"
+                                    ToolTip.Tip="Listen on the LAN so a Raspberry Pi can connect (home network only: there is no password)"/>
+                    </Grid>
+                    <SelectableTextBlock x:Name="GpioHint" FontSize="11" Foreground="#8b93a1" TextWrapping="Wrap"/>
+                  </StackPanel>
+                </Border>
+                <TextBox x:Name="ConsoleText" Grid.Row="2" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap"
+                         FontFamily="Menlo, Consolas, DejaVu Sans Mono, monospace" FontSize="11"
+                         Background="#0b0e13" BorderBrush="#232a35" Foreground="#cfd6e2"
+                         Text="Power on the chip to see its UART here."/>
+                <TextBox x:Name="ConsoleInput" Grid.Row="3" Margin="0,6,0,0" Watermark="Type a console command and press Enter"
+                         FontFamily="Menlo, Consolas, DejaVu Sans Mono, monospace" FontSize="12"/>
+              </Grid>
+            </TabItem>
+            <TabItem Header="Parts">
+              <ListBox x:Name="PartsList">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:PartItem">
+                    <Border Padding="12,8" CornerRadius="10" Background="#171c24">
+                      <Grid ColumnDefinitions="64,*,Auto">
+                        <TextBlock Text="{Binding Reference}" FontWeight="SemiBold" FontSize="13"/>
+                        <StackPanel Grid.Column="1" Spacing="1">
+                          <TextBlock Text="{Binding Value}" FontSize="13"/>
+                          <TextBlock Text="{Binding Kind}" FontSize="11" Classes="muted"/>
+                        </StackPanel>
+                        <Border Grid.Column="2" CornerRadius="6" Padding="7,2" VerticalAlignment="Center" Background="{Binding ModelBackground}">
+                          <TextBlock Text="{Binding ModelLabel}" FontSize="11" Foreground="{Binding ModelForeground}"/>
+                        </Border>
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </TabItem>
+          </TabControl>
+        </Grid>
+      </Border>
+    </Grid>
+
+    <!-- Status bar -->
+    <Border Grid.Row="2" Background="#12151b" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0">
+      <Grid ColumnDefinitions="*,Auto" Margin="16,0">
+        <TextBlock x:Name="Status" Classes="muted" FontSize="12" VerticalAlignment="Center" Text="Ready"/>
+        <TextBlock x:Name="CursorText" Grid.Column="1" Classes="muted" FontSize="12" VerticalAlignment="Center" FontFamily="Menlo, Consolas, monospace"/>
+      </Grid>
+    </Border>
+  </Grid>
+</Window>
