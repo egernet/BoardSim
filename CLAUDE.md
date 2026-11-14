@@ -24,7 +24,12 @@ released for Windows, macOS and Linux, so UI text and messages are English.
     traced to the connector it reaches), `Ws2812` decoding, `Firmware`
     (flash image from an ESP-IDF build folder, finding QEMU),
     `EmulatedChip` (persistent flash, power, the USB port), `Rfc2217Server`
-    and `AutoReset` (DTR/RTS to EN/GPIO9 via the bridge's S/H/X commands).
+    and `AutoReset` (DTR/RTS to EN/GPIO9 via the bridge's S/H/X commands),
+    `GpioServer` (pins over TCP 4142, line protocol; every command ends with
+    ok/err, watched pins push `change ...`). CHIP_EN/GPIO9 nets in the
+    simulation reset the chip (`EmulatedBoard.EnableChanged`).
+- `clients/python` - `boardsim_gpio.py` (no deps, RPi.GPIO style; callbacks
+  run on their own thread so they may call get/set) and `pi_bridge.py`.
 - `src/BoardSim.App` - Avalonia 11.2.3 (pinned; the template wants 12, which
   has API changes). `Controls/BoardView` draws, `Rendering/BoardScene` builds
   the geometry once per board.

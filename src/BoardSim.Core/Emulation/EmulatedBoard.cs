@@ -39,6 +39,14 @@ public sealed class EmulatedBoard
     /// <summary>Called with the input mask whenever simulated input levels change.</summary>
     public Action<uint>? SendInputs { get; set; }
 
+    /// <summary>
+    /// CHIP_EN on the board changed: false = held in reset; true = released,
+    /// with the boot mode GPIO9 selects (true = download). Raised by whatever
+    /// drives EN in the simulation: the RESET button, a Raspberry Pi, a pull-up.
+    /// </summary>
+    public Action<bool, bool>? EnableChanged { get; set; }
+    private bool? _enHigh;
+
     public EmulatedBoard(Simulator simulator, Part mcu, string ledOrder = "GRB")
     {
         Simulator = simulator;
@@ -113,8 +121,23 @@ public sealed class EmulatedBoard
         PushInputs();
     }
 
+    private void CheckEnable()
+    {
+        var en = Mcu.PinsNamed("CHIP_EN").Concat(Mcu.PinsNamed("EN")).FirstOrDefault();
+        if (en is null || !Simulator.Nets.TryGetValue(en.Net, out var r)) return;
+        var high = r.State is NetState.High;
+        if (r.State is NetState.Mid or NetState.Floating) high = _enHigh ?? true;   // undecided: keep
+        if (_enHigh == high) return;
+        var first = _enHigh is null;
+        _enHigh = high;
+        if (first && high) return;   // powered up normally: nothing to do
+        var io9Low = _gpio.TryGetValue(9, out var io9) && Simulator.Nets.TryGetValue(io9.Net, out var r9) && r9.State == NetState.Low;
+        EnableChanged?.Invoke(high, high && io9Low);
+    }
+
     private void PushInputs()
     {
+        CheckEnable();
         uint mask = 0;
         foreach (var (n, pin) in _gpio)
             if (Simulator.Nets.TryGetValue(pin.Net, out var r) && r.State == NetState.High) mask |= 1u << n;

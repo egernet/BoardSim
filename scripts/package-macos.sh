@@ -26,6 +26,7 @@ echo "== QEMU fork"
 
 echo "== Example"
 cp -R "$ROOT/examples" "$APP/Contents/MacOS/examples"
+cp -R "$ROOT/clients" "$APP/Contents/MacOS/clients"
 
 echo "== Icon"
 ICONSET="$OUT/BoardSim.iconset"; mkdir -p "$ICONSET"

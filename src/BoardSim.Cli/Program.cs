@@ -16,9 +16,11 @@ if (args.Length < 2 || args[0] is "-h" or "--help")
           boardsim check <board.kicad_pcb> [--all]   run the rules (exit code 1 on errors)
           boardsim parts <board.kicad_pcb>           parts and the model each one matched
           boardsim pins  <board.kicad_pcb> <REF>...  pins of the given parts and their nets
-          boardsim chip  <board.kicad_pcb> [--port 4141] [--flash build-folder]
+          boardsim chip  <board.kicad_pcb> [--port 4141] [--flash build-folder] [--lan]
                                                      power the board's ESP32-C3 in QEMU and serve its
                                                      USB port: idf.py -p rfc2217://localhost:4141 flash
+                                                     and its pins on localhost:4142 (--lan: on the network)
+          boardsim gpio  <board.kicad_pcb> [--lan]  serve the simulated board's pins on port 4142
 
         Expected connections are read from <board>.boardsim.json next to the board.
         Extra part models (*.part.json) are read from a boardsim-parts folder next to it.
@@ -94,6 +96,11 @@ switch (command)
         Console.Error.WriteLine($"[boardsim] {mcu.Reference} powered, flash {chip.FlashPath}{(chip.FlashIsBlank() ? " (blank)" : "")}");
         Console.Error.WriteLine($"[boardsim] USB port: {chip.Port.Url}   e.g.  idf.py -p {chip.Port.Url} flash monitor");
         if (chip.ActiveStreamPort is { } sp) Console.Error.WriteLine($"[boardsim] UDP 127.0.0.1:{sp} is forwarded to the chip's port 2412");
+        using var gpio = new GpioServer(sim, a => { board.Read(_ => { a(); return 0; }); board.Rerun(); }, lan: args.Contains("--lan"))
+        {
+            FirmwarePart = mcu,
+        };
+        Console.Error.WriteLine($"[boardsim] GPIO: {string.Join("  ", gpio.Addresses())}   e.g.  nc localhost {gpio.Port}");
         var stop = new ManualResetEventSlim();
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; stop.Set(); };
         var last = 0;
@@ -102,6 +109,20 @@ switch (command)
             var (frames, strings) = board.Read(b => (b.Frames, b.Strings.Count));
             if (frames != last) { Console.Error.WriteLine($"[boardsim] {frames} LED frames on {strings} strings"); last = frames; }
         }
+        return 0;
+    }
+    case "gpio":
+    {
+        var report = Checker.Run(path);
+        var sim = new Simulator(report.Circuit);
+        sim.Run();
+        var gate = new object();
+        using var gpio = new GpioServer(sim, a => { lock (gate) { a(); sim.Run(); } }, lan: args.Contains("--lan"));
+        gpio.Activity += what => Console.Error.WriteLine($"[boardsim] {what}");
+        Console.Error.WriteLine($"[boardsim] {report.Board.Title}: pins on {string.Join("  ", gpio.Addresses())}   (Ctrl+C to stop)");
+        var stop = new ManualResetEventSlim();
+        Console.CancelKeyPress += (_, e) => { e.Cancel = true; stop.Set(); };
+        stop.Wait();
         return 0;
     }
     default:

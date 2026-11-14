@@ -34,6 +34,7 @@ and 4.8 V on the connector.</i></p>
 | 🔌 **Has a USB port** | `idf.py -p rfc2217://localhost:4141 flash monitor` - esptool resets the emulated chip into download mode and flashes it, like a board on your desk. |
 | 📈 **Has an oscilloscope** | Clip up to four probes on any net and see the signal: seconds in roll mode, microseconds on LED data, with decoded bits. |
 | 💡 **Shows LED strings** | WS2812 data is decoded and followed through buffers and multiplexers to the connector it actually reaches. |
+| 🥧 **Talks to a Raspberry Pi** | The pins are open on the network: `nc`, a Python library in the style of `RPi.GPIO`, or a bridge to a real Pi's pins. |
 | 🕰️ **Lets you break things** | Click the crystal and give it another frequency: the UART turns to garbage, the LED timing falls apart - exactly as on hardware. |
 
 ## Quick start
@@ -82,6 +83,47 @@ idf.py -p rfc2217://localhost:4141 flash monitor
 Wi-Fi cannot be emulated, so firmware that needs a network should use the emulated OpenCores
 Ethernet (`CONFIG_ETH_USE_OPENETH`). UDP port 2412 in the chip is forwarded from
 `127.0.0.1:12412`; the Julelys manager can stream to it.
+
+## Talk to it from a Raspberry Pi
+
+The board's pins are open over the network (port **4142**), so a Raspberry Pi - or any script - can
+play the device plugged into it. On a HAT like Julelys v4 the Pi's pins *are* the header, so
+`GPIO17` means J1 pin 11, and what the Pi does travels through the simulated circuit to the
+firmware and back.
+
+```text
+$ nc localhost 4142
+boardsim gpio 1 - board julelys_v4 - type 'help'
+watch J1                     → reports every change on the Pi header: change J1.24 high 3.30
+set GPIO5 low                → holds the ESP32 in reset through R28 (CHIP_EN 0.31 V)
+set GPIO5 input              → releases it: the firmware boots again
+get U1.GPIO0                 → U1.4 high 2.82
+```
+
+From Python, as if the code ran on the Pi ([`clients/python`](clients/python), no dependencies):
+
+```python
+import boardsim_gpio as GPIO        # instead of: import RPi.GPIO as GPIO
+GPIO.connect("192.168.1.20")        # the Mac running BoardSim
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(17, GPIO.OUT)
+GPIO.output(17, GPIO.HIGH)
+GPIO.add_event_detect(9, GPIO.BOTH, callback=lambda ch: print("MISO", GPIO.input(ch)))
+```
+
+And with a real Pi's pins: a button on the Pi presses into the simulation, an LED on the Pi follows
+the firmware:
+
+```bash
+python3 pi_bridge.py 192.168.1.20 --in 17 --out 27
+```
+
+Turn on **Allow from network** in the Console tab (or `boardsim chip board.kicad_pcb --lan`) for a
+Pi on your LAN to reach it - home networks only, there is no password.
+
+CHIP_EN and GPIO9 are wired through the simulation: the **RESET** and **BOOT** buttons on the board,
+or a Pi holding EN low with GPIO9 low, reset the emulated chip into download mode - just like the
+v4 board lets a Pi flash its ESP32.
 
 ## Find the mistakes
 
@@ -150,7 +192,8 @@ Blue is 0 V, amber 3.3 V, red 5 V, purple in between, grey floating, flashing re
 - **BoardSim.Core** - KiCad loader (KiCad 6-10), connectivity, rules, part models, the DC simulator
   and the emulation bridge. No UI.
 - **BoardSim.App** - the Avalonia desktop app (Windows, macOS, Linux).
-- **BoardSim.Cli** - `boardsim check | parts | pins | chip`.
+- **BoardSim.Cli** - `boardsim check | parts | pins | chip | gpio`.
+- **clients/python** - `boardsim_gpio.py` (RPi.GPIO style) and `pi_bridge.py` (real Pi pins).
 - **[qemu-boardsim](https://github.com/egernet/qemu-boardsim)** - Espressif's QEMU with ESP32-C3
   GPIO, RMT and SAR ADC emulation, a pin bridge to BoardSim and reset control.
 
@@ -170,7 +213,6 @@ Firmware emulation needs the QEMU fork. Build it from
 
 ## Roadmap
 
-- Pins reachable from outside, so a Raspberry Pi or a script can drive and read the simulated board.
 - Wi-Fi in the emulator, at least "there is a network".
 - Release builds for Windows and Linux.
 - More part models, and more chips than the ESP32-C3.

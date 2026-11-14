@@ -55,6 +55,24 @@ public sealed class EmulatedChip : IDisposable
                 _session?.Boot(download);
                 Status?.Invoke(download ? "Reset into download mode (GPIO9 low)" : "Reset: booting from flash");
             });
+        // CHIP_EN in the simulation (RESET button, a Pi on the header) resets the chip,
+        // and GPIO9 low at release (BOOT button, a Pi) selects download mode.
+        board.EnableChanged = (high, download) =>
+        {
+            if (!high)
+            {
+                HeldInReset = true;
+                _session?.Hold();
+                Status?.Invoke("CHIP_EN low: held in reset");
+            }
+            else
+            {
+                HeldInReset = false;
+                DownloadMode = download;
+                _session?.Boot(download);
+                Status?.Invoke(download ? "CHIP_EN released with GPIO9 low: download mode" : "CHIP_EN released: booting from flash");
+            }
+        };
         Port.Data += data => _session?.WriteUart(BaudMismatch ? Garble(data, 1 / Board.Simulator.ClockRatio(Board.Mcu)) : data);
         Port.ControlLines += (dtr, rts) =>
         {
