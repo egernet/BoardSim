@@ -183,8 +183,8 @@ public static class KiCadPcbLoader
         var font = effects?.Child("font");
         var height = font?.Child("size")?.Num(1, 1) ?? 1;
         var thick = font?.Child("thickness")?.Num(1, height * 0.15) ?? height * 0.15;
-        var mirrored = effects?.Child("justify")?.Atoms().Contains("mirror") ?? false;
-        return new TextShape(layer, thick, text, toBoard(Xy(at)), at?.Num(3) ?? 0, height, mirrored);
+        var (mirrored, align, top, bottom) = Justify(effects);
+        return new TextShape(layer, thick, text, toBoard(Xy(at)), at?.Num(3) ?? 0, height, mirrored, align, top, bottom);
     }
 
     private static Pad ReadPad(SExpr node, Footprint fp, Func<Vec2, Vec2> toBoard, Context ctx)
@@ -320,12 +320,19 @@ public static class KiCadPcbLoader
                 var at = node.Child("at");
                 var font = node.Child("effects")?.Child("font");
                 var h = font?.Child("size")?.Num(1, 1) ?? 1;
-                var mirrored = node.Child("effects")?.Child("justify")?.Atoms().Contains("mirror") ?? false;
+                var (mirrored, align, top, bottom) = Justify(node.Child("effects"));
                 return new TextShape(layer, font?.Child("thickness")?.Num(1, h * 0.15) ?? h * 0.15,
-                    node.Arg(1) ?? "", T(Xy(at)), at?.Num(3) ?? 0, h, mirrored);
+                    node.Arg(1) ?? "", T(Xy(at)), at?.Num(3) ?? 0, h, mirrored, align, top, bottom);
             }
         }
         return null;
+    }
+
+    private static (bool Mirror, TextAlign Align, bool Top, bool Bottom) Justify(SExpr? effects)
+    {
+        var j = effects?.Child("justify")?.Atoms().ToList() ?? new List<string>();
+        var align = j.Contains("left") ? TextAlign.Left : j.Contains("right") ? TextAlign.Right : TextAlign.Center;
+        return (j.Contains("mirror"), align, j.Contains("top"), j.Contains("bottom"));
     }
 
     private static Shape LegacyArc(SExpr node, string layer, double width, Func<Vec2, Vec2> t)

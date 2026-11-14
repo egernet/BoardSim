@@ -44,8 +44,10 @@ public sealed record LineShape(string Layer, double Width, Vec2 Start, Vec2 End)
 public sealed record ArcShape(string Layer, double Width, Vec2 Start, Vec2 Mid, Vec2 End) : Shape(Layer, Width);
 public sealed record CircleShape(string Layer, double Width, Vec2 Center, double Radius, bool Filled) : Shape(Layer, Width);
 public sealed record PolyShape(string Layer, double Width, IReadOnlyList<Vec2> Points, bool Filled) : Shape(Layer, Width);
-public sealed record TextShape(string Layer, double Width, string Text, Vec2 Position, double Angle, double Height, bool Mirrored)
-    : Shape(Layer, Width);
+public enum TextAlign { Center, Left, Right }
+
+public sealed record TextShape(string Layer, double Width, string Text, Vec2 Position, double Angle, double Height, bool Mirrored,
+    TextAlign Align = TextAlign.Center, bool Top = false, bool Bottom = false) : Shape(Layer, Width);
 
 public enum PadKind { Smd, ThroughHole, NpThroughHole, Connect }
 public enum PadShape { Rect, RoundRect, Circle, Oval, Trapezoid, Custom }
