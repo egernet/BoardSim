@@ -111,5 +111,6 @@ public class RuleTests(ITestOutputHelper output)
         Assert.Null(Units.VoltsFromNetName("IO7"));
         Assert.Null(Units.VoltsFromNetName("/CH1"));
         Assert.Null(Units.VoltsFromNetName("A0"));
+        Assert.Null(Units.VoltsFromNetName("/Power/LED_3V3"));
     }
 }

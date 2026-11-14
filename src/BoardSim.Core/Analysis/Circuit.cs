@@ -271,9 +271,11 @@ public static class Units
         var n = name.Split('/').Last().ToUpperInvariant();
         if (Regex.IsMatch(n, @"^(GND|AGND|DGND|PGND|GNDA|GNDD|GNDPWR|VSS|0V|EARTH|CHASSIS)\d*$")) return 0;
         if (n is "VBUS" or "USB_VBUS" or "VUSB") return 5;
-        var m = Regex.Match(n, @"(?:^|[_+])\+?(\d+)V(\d+)$");          // 3V3, VCC_3V3
+        // Only supply-like names: "3V3", "+5V", "+3.3V", or a supply prefix such as
+        // VCC_3V3 / VDD_5V. "LED_3V3" is a signal next to a rail, not the rail.
+        var m = Regex.Match(n, @"^(?:(?:VCC|VDD|VDDA|VIN|VSYS|VBAT|PWR|P|V)_?)?\+?(\d+)V(\d+)$");      // 3V3, VCC_3V3
         if (m.Success) return double.Parse($"{m.Groups[1].Value}.{m.Groups[2].Value}", CultureInfo.InvariantCulture);
-        m = Regex.Match(n, @"(?:^|[_+])\+?(\d+(?:\.\d+)?)V$");         // +5V, +3.3V, VCC_5V
+        m = Regex.Match(n, @"^(?:(?:VCC|VDD|VDDA|VIN|VSYS|VBAT|PWR|P|V)_?)?\+?(\d+(?:\.\d+)?)V$");     // +5V, +3.3V, VCC_5V
         if (m.Success) return double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
         return null;
     }
