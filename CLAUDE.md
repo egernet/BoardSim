@@ -22,7 +22,9 @@ released for Windows, macOS and Linux, so UI text and messages are English.
     (`../qemu-esp`, branch `boardsim`): `QemuSession` (process, pin bridge,
     UART), `EmulatedBoard` (pins into the simulation, inputs back, LED data
     traced to the connector it reaches), `Ws2812` decoding, `Firmware`
-    (flash image from an ESP-IDF build folder, finding QEMU).
+    (flash image from an ESP-IDF build folder, finding QEMU),
+    `EmulatedChip` (persistent flash, power, the USB port), `Rfc2217Server`
+    and `AutoReset` (DTR/RTS to EN/GPIO9 via the bridge's S/H/X commands).
 - `src/BoardSim.App` - Avalonia 11.2.3 (pinned; the template wants 12, which
   has API changes). `Controls/BoardView` draws, `Rendering/BoardScene` builds
   the geometry once per board.
@@ -33,7 +35,7 @@ released for Windows, macOS and Linux, so UI text and messages are English.
 ## Screenshots without a display session
 
 ```bash
-dotnet src/BoardSim.App/bin/Debug/net8.0/BoardSim.dll board.kicad_pcb --screenshot out.png [--select N] [--side back] [--layers] [--net NAME] [--simulate] [--drive U1.GPIO7=H] [--firmware build-folder --wait 14000]
+dotnet src/BoardSim.App/bin/Debug/net8.0/BoardSim.dll board.kicad_pcb --screenshot out.png [--select N] [--side back] [--layers] [--net NAME] [--simulate] [--drive U1.GPIO7=H] [--firmware build-folder | --power] [--wait 14000]
 ```
 
 The window opens, renders, saves and closes.
@@ -51,8 +53,17 @@ v4: it is a reviewed board, so a hit there is usually a false positive.
 2. Done: ESP32-C3 firmware runs in the QEMU fork (GPIO, RMT, SAR ADC added),
    drives the simulation and shows the LED strings. Wi-Fi cannot be emulated:
    firmware needs a build that uses the emulated OpenCores Ethernet (Julelys:
-   CONFIG_JULELYS_QEMU). Still open: a virtual serial port so `idf.py flash`
-   works against the emulated chip, and shipping QEMU builds for Windows,
+   CONFIG_JULELYS_QEMU). `idf.py -p rfc2217://localhost:4141 flash` works
+   against the emulated chip. Still open: shipping QEMU builds for Windows,
    macOS and Linux.
+
+## Gotchas (emulation)
+
+- pyserial's RFC 2217 client waits ~50 ms for every DTR/RTS change, so the
+  auto-reset boots download mode as soon as GPIO9 is seen low after EN is
+  released, rather than sampling at a fixed delay.
+- A blank flash makes the ROM print "invalid header" as fast as QEMU runs;
+  console output to the port is throttled to 230400 baud or pyserial drowns.
+- The flasher stub reads 0x3FCE0000+, which the fork backs with RAM.
 3. Physical board check: test firmware reads pins back over USB and BoardSim
    compares them with the netlist.

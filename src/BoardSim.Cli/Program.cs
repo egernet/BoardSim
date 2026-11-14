@@ -1,5 +1,8 @@
 using BoardSim.Core.Analysis;
+using BoardSim.Core.Emulation;
 using BoardSim.Core.KiCad;
+using BoardSim.Core.Parts;
+using BoardSim.Core.Simulation;
 
 // boardsim check <board.kicad_pcb> [--all]   run the rules, exit 1 on errors
 // boardsim parts <board.kicad_pcb>           list parts and the model each one matched
@@ -13,6 +16,9 @@ if (args.Length < 2 || args[0] is "-h" or "--help")
           boardsim check <board.kicad_pcb> [--all]   run the rules (exit code 1 on errors)
           boardsim parts <board.kicad_pcb>           parts and the model each one matched
           boardsim pins  <board.kicad_pcb> <REF>...  pins of the given parts and their nets
+          boardsim chip  <board.kicad_pcb> [--port 4141] [--flash build-folder]
+                                                     power the board's ESP32-C3 in QEMU and serve its
+                                                     USB port: idf.py -p rfc2217://localhost:4141 flash
 
         Expected connections are read from <board>.boardsim.json next to the board.
         Extra part models (*.part.json) are read from a boardsim-parts folder next to it.
@@ -65,6 +71,36 @@ switch (command)
             foreach (var pin in part.Pins.OrderBy(p => p.Number.Length).ThenBy(p => p.Number))
                 Console.WriteLine($"  {pin.Number,-4} {pin.Name,-12} {pin.Model?.Type.ToString() ?? "",-9} {pin.Net.DisplayName}" +
                                   (pin.Net.Volts is { } v ? $"  ({v} V)" : ""));
+        }
+        return 0;
+    }
+    case "chip":
+    {
+        var report = Checker.Run(path);
+        var mcu = EmulatedBoard.FindMcu(report.Circuit);
+        if (mcu is null) { Console.Error.WriteLine("No ESP32-C3 on this board."); return 2; }
+        if (Firmware.FindQemu() is not { } qemu) { Console.Error.WriteLine("BoardSim's QEMU not found; set BOARDSIM_QEMU."); return 2; }
+        var portArg = Array.IndexOf(args, "--port");
+        var port = portArg > 0 ? int.Parse(args[portArg + 1]) : 4141;
+        var flashArg = Array.IndexOf(args, "--flash");
+        var sim = new Simulator(report.Circuit);
+        var board = new EmulatedBoard(sim, mcu, report.Expectations?.LedOrder ?? "GRB");
+        using var chip = new EmulatedChip(board, qemu, EmulatedChip.DefaultFlashPath(path), port);
+        chip.TraceControlLines = args.Contains("--trace");
+        chip.Console += text => Console.Write(text);
+        chip.Status += line => Console.Error.WriteLine($"[boardsim] {line}");
+        chip.Exited += code => Console.Error.WriteLine($"[boardsim] QEMU exited ({code}): {chip.Log.Trim().Split('\n').LastOrDefault()}");
+        if (flashArg > 0) chip.LoadBuild(args[flashArg + 1]); else chip.PowerOn();
+        Console.Error.WriteLine($"[boardsim] {mcu.Reference} powered, flash {chip.FlashPath}{(chip.FlashIsBlank() ? " (blank)" : "")}");
+        Console.Error.WriteLine($"[boardsim] USB port: {chip.Port.Url}   e.g.  idf.py -p {chip.Port.Url} flash monitor");
+        if (chip.ActiveStreamPort is { } sp) Console.Error.WriteLine($"[boardsim] UDP 127.0.0.1:{sp} is forwarded to the chip's port 2412");
+        var stop = new ManualResetEventSlim();
+        Console.CancelKeyPress += (_, e) => { e.Cancel = true; stop.Set(); };
+        var last = 0;
+        while (!stop.Wait(1000))
+        {
+            var (frames, strings) = board.Read(b => (b.Frames, b.Strings.Count));
+            if (frames != last) { Console.Error.WriteLine($"[boardsim] {frames} LED frames on {strings} strings"); last = frames; }
         }
         return 0;
     }

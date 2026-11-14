@@ -70,7 +70,8 @@ public sealed class QemuSession : IDisposable
     private readonly StringBuilder _log = new();
 
     public event Action<BridgeMessage>? Message;
-    public event Action<string>? Console;
+    /// <summary>Raw bytes from the chip's UART0 (console output, or esptool's replies).</summary>
+    public event Action<byte[]>? Uart;
     public event Action<int>? Exited;
 
     public QemuSession(QemuOptions options) => _options = options;
@@ -78,6 +79,23 @@ public sealed class QemuSession : IDisposable
     public bool IsRunning => _process is { HasExited: false };
     public string Log { get { lock (_log) return _log.ToString(); } }
     public IReadOnlyList<string> Arguments { get; private set; } = Array.Empty<string>();
+    /// <summary>The host UDP port actually forwarded to the guest's 2412 (another BoardSim may hold the default).</summary>
+    public int? StreamPort { get; private set; }
+
+    private static int FreeUdpPort(int wanted)
+    {
+        for (var port = wanted; port < wanted + 20; port++)
+        {
+            try
+            {
+                using var probe = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
+                return port;
+            }
+            catch (SocketException) { }
+        }
+        using var any = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
+        return ((IPEndPoint)any.Client.LocalEndPoint!).Port;
+    }
 
     public void Start()
     {
@@ -88,7 +106,8 @@ public sealed class QemuSession : IDisposable
         var bridgePort = ((IPEndPoint)_bridgeListener.LocalEndpoint).Port;
         var uartPort = ((IPEndPoint)_uartListener.LocalEndpoint).Port;
 
-        var nic = "user,model=open_eth" + (_options.StreamPort is { } sp ? $",hostfwd=udp:127.0.0.1:{sp}-:2412" : "");
+        StreamPort = _options.StreamPort is { } wanted ? FreeUdpPort(wanted) : null;
+        var nic = "user,model=open_eth" + (StreamPort is { } sp ? $",hostfwd=udp:127.0.0.1:{sp}-:2412" : "");
         var args = new List<string>
         {
             "-nographic", "-machine", "esp32c3", "-icount", "3",
@@ -145,7 +164,7 @@ public sealed class QemuSession : IDisposable
             var buffer = new byte[4096];
             int n;
             while (!ct.IsCancellationRequested && (n = await stream.ReadAsync(buffer, ct)) > 0)
-                Console?.Invoke(Encoding.UTF8.GetString(buffer, 0, n));
+                Uart?.Invoke(buffer[..n]);
         }
         catch (Exception) when (ct.IsCancellationRequested) { }
         catch (IOException) { }
@@ -156,10 +175,22 @@ public sealed class QemuSession : IDisposable
     public void SetInputs(uint mask) => Send($"I {mask:x}\n");
 
     /// <summary>Types into the chip's UART console.</summary>
-    public void WriteConsole(string text)
+    public void WriteConsole(string text) => WriteUart(Encoding.UTF8.GetBytes(text));
+
+    /// <summary>Sends bytes to the chip's UART0.</summary>
+    public void WriteUart(byte[] data)
     {
         if (_uart?.Connected != true) return;
-        try { _uart.GetStream().Write(Encoding.UTF8.GetBytes(text)); } catch (IOException) { }
+        try { _uart.GetStream().Write(data); } catch (IOException) { }
+    }
+
+    /// <summary>Holds the chip in reset (CHIP_EN low) or releases it, booting in the given mode.</summary>
+    public void Hold() => Send("H 1\n");
+
+    public void Boot(bool downloadMode)
+    {
+        Send($"S {(downloadMode ? 0x02 : 0x08):x}\n");
+        Send("H 0\n");
     }
 
     private void Send(string line)

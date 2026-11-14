@@ -31,19 +31,36 @@ its net, click a finding to jump to it.
 
 ## Run firmware
 
-BoardSim can run ESP32-C3 firmware on the board's chip. Its GPIO outputs
-drive the simulation, buttons and pulls reach its inputs, and LED data from
-the RMT is decoded and shown on the connector it reaches.
+The board's ESP32-C3 runs real firmware. Its GPIO outputs drive the
+simulation, buttons and pulls reach its inputs, and LED data from the RMT is
+decoded and shown on the connector it reaches.
+
+**Power on** boots the chip from its own flash, which is kept between runs
+(`~/.boardsim/flash/`), like a real board. The chip has a virtual USB
+serial port, so you flash and monitor it with the usual tools:
+
+```bash
+idf.py -p rfc2217://localhost:4141 flash monitor
+```
+
+The port is RFC 2217 (serial over TCP), which works on Windows, macOS and
+Linux without a driver. It carries DTR and RTS, and BoardSim emulates the
+board's auto-reset circuit, so esptool resets the chip into download mode
+and back exactly as on hardware. **Flash build…** writes an ESP-IDF build
+folder straight into the flash instead.
+
+Headless: `boardsim chip board.kicad_pcb` powers the chip and serves the
+same port.
 
 This needs BoardSim's QEMU fork,
 [egernet/qemu-boardsim](https://github.com/egernet/qemu-boardsim) (branch
-`boardsim`), which adds GPIO, RMT and SAR ADC emulation to Espressif's QEMU.
-Point `BOARDSIM_QEMU` at its `qemu-system-riscv32`, then use
-**Run firmware…** and pick the ESP-IDF build folder.
+`boardsim`), which adds GPIO, RMT and SAR ADC emulation, a pin bridge and
+reset control to Espressif's QEMU. Point `BOARDSIM_QEMU` at its
+`qemu-system-riscv32`.
 
 QEMU cannot emulate Wi-Fi. Firmware that needs a network should use the
 emulated OpenCores Ethernet (`CONFIG_ETH_USE_OPENETH`); UDP 2412 in the
-guest is forwarded from `127.0.0.1:12412`.
+guest is forwarded from `127.0.0.1:12412` (or the next free port).
 
 ## Expected connections
 
