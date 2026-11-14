@@ -1,0 +1,81 @@
+{
+  "id": "usb-c-receptacle-usb2",
+  "name": "USB-C receptacle (USB 2.0)",
+  "kind": "connector",
+  "match": {
+    "value": [
+      "USB_C_Receptacle"
+    ]
+  },
+  "pins": {
+    "A4": {
+      "name": "VBUS",
+      "type": "powerOut",
+      "volts": 5
+    },
+    "A9": {
+      "name": "VBUS",
+      "type": "powerOut",
+      "volts": 5
+    },
+    "B4": {
+      "name": "VBUS",
+      "type": "powerOut",
+      "volts": 5
+    },
+    "B9": {
+      "name": "VBUS",
+      "type": "powerOut",
+      "volts": 5
+    },
+    "A1": {
+      "name": "GND",
+      "type": "ground"
+    },
+    "A12": {
+      "name": "GND",
+      "type": "ground"
+    },
+    "B1": {
+      "name": "GND",
+      "type": "ground"
+    },
+    "B12": {
+      "name": "GND",
+      "type": "ground"
+    },
+    "A5": {
+      "name": "CC1",
+      "type": "analog",
+      "pull": "down",
+      "why": "A USB-C sink needs 5.1 kΩ from each CC pin to ground, or a USB-C charger will not turn on VBUS."
+    },
+    "B5": {
+      "name": "CC2",
+      "type": "analog",
+      "pull": "down",
+      "why": "A USB-C sink needs 5.1 kΩ from each CC pin to ground, or a USB-C charger will not turn on VBUS."
+    },
+    "A6": {
+      "name": "D+"
+    },
+    "B6": {
+      "name": "D+"
+    },
+    "A7": {
+      "name": "D-"
+    },
+    "B7": {
+      "name": "D-"
+    },
+    "A8": {
+      "name": "SBU1"
+    },
+    "B8": {
+      "name": "SBU2"
+    },
+    "S1": {
+      "name": "SHIELD"
+    }
+  }
+}

@@ -1,0 +1,243 @@
+{
+  "id": "raspberry-pi-40",
+  "name": "Raspberry Pi 40-pin header",
+  "kind": "connector",
+  "match": {
+    "value": [
+      "Raspberry|RPi|Pi_40"
+    ]
+  },
+  "supply": "3V3",
+  "pins": {
+    "3": {
+      "name": "GPIO2",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "5": {
+      "name": "GPIO3",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "7": {
+      "name": "GPIO4",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "8": {
+      "name": "GPIO14",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "10": {
+      "name": "GPIO15",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "11": {
+      "name": "GPIO17",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "12": {
+      "name": "GPIO18",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "13": {
+      "name": "GPIO27",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "15": {
+      "name": "GPIO22",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "16": {
+      "name": "GPIO23",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "18": {
+      "name": "GPIO24",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "19": {
+      "name": "GPIO10",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "21": {
+      "name": "GPIO9",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "22": {
+      "name": "GPIO25",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "23": {
+      "name": "GPIO11",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "24": {
+      "name": "GPIO8",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "26": {
+      "name": "GPIO7",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "27": {
+      "name": "ID_SD",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "28": {
+      "name": "ID_SC",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "29": {
+      "name": "GPIO5",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "31": {
+      "name": "GPIO6",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "32": {
+      "name": "GPIO12",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "33": {
+      "name": "GPIO13",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "35": {
+      "name": "GPIO19",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "36": {
+      "name": "GPIO16",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "37": {
+      "name": "GPIO26",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "38": {
+      "name": "GPIO20",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "40": {
+      "name": "GPIO21",
+      "type": "io",
+      "maxVolts": 3.6,
+      "why": "Raspberry Pi GPIO is 3.3 V only."
+    },
+    "1": {
+      "name": "3V3",
+      "type": "powerOut",
+      "volts": 3.3
+    },
+    "17": {
+      "name": "3V3",
+      "type": "powerOut",
+      "volts": 3.3
+    },
+    "2": {
+      "name": "5V",
+      "type": "power",
+      "volts": 5,
+      "range": [
+        4.75,
+        5.25
+      ],
+      "decouple": false
+    },
+    "4": {
+      "name": "5V",
+      "type": "power",
+      "volts": 5,
+      "range": [
+        4.75,
+        5.25
+      ],
+      "decouple": false
+    },
+    "6": {
+      "name": "GND",
+      "type": "ground"
+    },
+    "9": {
+      "name": "GND",
+      "type": "ground"
+    },
+    "14": {
+      "name": "GND",
+      "type": "ground"
+    },
+    "20": {
+      "name": "GND",
+      "type": "ground"
+    },
+    "25": {
+      "name": "GND",
+      "type": "ground"
+    },
+    "30": {
+      "name": "GND",
+      "type": "ground"
+    },
+    "34": {
+      "name": "GND",
+      "type": "ground"
+    },
+    "39": {
+      "name": "GND",
+      "type": "ground"
+    }
+  }
+}

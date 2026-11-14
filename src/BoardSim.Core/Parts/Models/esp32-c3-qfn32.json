@@ -1,0 +1,231 @@
+{
+  "id": "esp32-c3-qfn32",
+  "name": "ESP32-C3 (QFN-32)",
+  "kind": "ic",
+  "datasheet": "https://www.espressif.com/sites/default/files/documentation/esp32-c3_datasheet_en.pdf",
+  "match": {
+    "value": [
+      "^ESP32-C3(FH4|FN4|FH4AZ|FN4X|)$"
+    ],
+    "footprint": [
+      "QFN-32"
+    ]
+  },
+  "supply": "VDD3P3_CPU",
+  "pins": {
+    "1": {
+      "name": "LNA_IN",
+      "type": "rf"
+    },
+    "2": {
+      "name": "VDD3P3",
+      "type": "power",
+      "volts": 3.3,
+      "range": [
+        3.0,
+        3.6
+      ]
+    },
+    "3": {
+      "name": "VDD3P3",
+      "type": "power",
+      "volts": 3.3,
+      "range": [
+        3.0,
+        3.6
+      ]
+    },
+    "4": {
+      "name": "GPIO0",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD"
+    },
+    "5": {
+      "name": "GPIO1",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD"
+    },
+    "6": {
+      "name": "GPIO2",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD",
+      "strap": "high",
+      "why": "GPIO2 is a strapping pin and should be high at reset."
+    },
+    "7": {
+      "name": "CHIP_EN",
+      "type": "in",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD",
+      "pull": "up",
+      "minCap": 1e-07,
+      "why": "CHIP_EN needs a pull-up and an RC delay (10 kΩ + 1 µF) so the chip starts after the supply is stable."
+    },
+    "8": {
+      "name": "GPIO3",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD"
+    },
+    "9": {
+      "name": "GPIO4",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD"
+    },
+    "10": {
+      "name": "GPIO5",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD"
+    },
+    "11": {
+      "name": "VDD3P3_RTC",
+      "type": "power",
+      "volts": 3.3,
+      "range": [
+        3.0,
+        3.6
+      ]
+    },
+    "12": {
+      "name": "GPIO6",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD"
+    },
+    "13": {
+      "name": "GPIO7",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD"
+    },
+    "14": {
+      "name": "GPIO8",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD",
+      "strap": "high",
+      "why": "GPIO8 must read high at reset for download mode. A load such as an LED to ground pulls it towards 1.8 V."
+    },
+    "15": {
+      "name": "GPIO9",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD",
+      "strap": "high",
+      "internalPull": "up",
+      "maxCap": 1.1e-09,
+      "why": "GPIO9 selects the boot mode: high = boot from flash, low = download. Espressif advises against large capacitors on it."
+    },
+    "16": {
+      "name": "GPIO10",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD"
+    },
+    "17": {
+      "name": "VDD3P3_CPU",
+      "type": "power",
+      "volts": 3.3,
+      "range": [
+        3.0,
+        3.6
+      ]
+    },
+    "18": {
+      "name": "VDD_SPI",
+      "type": "powerOut",
+      "volts": 3.3,
+      "minCap": 1e-07,
+      "why": "VDD_SPI powers the flash and needs a decoupling capacitor."
+    },
+    "19": {
+      "name": "SPIHD",
+      "type": "nc",
+      "why": "Used by the in-package flash on FH4/FN4 parts."
+    },
+    "20": {
+      "name": "SPIWP",
+      "type": "nc",
+      "why": "Used by the in-package flash on FH4/FN4 parts."
+    },
+    "21": {
+      "name": "SPICS0",
+      "type": "nc",
+      "why": "Used by the in-package flash on FH4/FN4 parts."
+    },
+    "22": {
+      "name": "SPICLK",
+      "type": "nc",
+      "why": "Used by the in-package flash on FH4/FN4 parts."
+    },
+    "23": {
+      "name": "SPID",
+      "type": "nc",
+      "why": "Used by the in-package flash on FH4/FN4 parts."
+    },
+    "24": {
+      "name": "SPIQ",
+      "type": "nc",
+      "why": "Used by the in-package flash on FH4/FN4 parts."
+    },
+    "25": {
+      "name": "GPIO18",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD"
+    },
+    "26": {
+      "name": "GPIO19",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD"
+    },
+    "27": {
+      "name": "GPIO20",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD"
+    },
+    "28": {
+      "name": "GPIO21",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD"
+    },
+    "29": {
+      "name": "XTAL_N",
+      "type": "analog"
+    },
+    "30": {
+      "name": "XTAL_P",
+      "type": "analog"
+    },
+    "31": {
+      "name": "VDDA",
+      "type": "power",
+      "volts": 3.3,
+      "range": [
+        3.0,
+        3.6
+      ]
+    },
+    "32": {
+      "name": "VDDA",
+      "type": "power",
+      "volts": 3.3,
+      "range": [
+        3.0,
+        3.6
+      ]
+    },
+    "33": {
+      "name": "GND",
+      "type": "ground"
+    }
+  }
+}

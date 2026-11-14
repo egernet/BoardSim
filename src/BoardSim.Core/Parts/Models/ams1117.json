@@ -1,0 +1,35 @@
+{
+  "id": "ams1117-3.3",
+  "name": "AMS1117-3.3 LDO",
+  "kind": "regulator",
+  "match": {
+    "value": [
+      "^AMS1117-3\\.3",
+      "^LM1117.*3\\.3"
+    ]
+  },
+  "pins": {
+    "1": {
+      "name": "GND",
+      "type": "ground"
+    },
+    "2": {
+      "name": "VOUT",
+      "type": "powerOut",
+      "volts": 3.3,
+      "minCap": 1e-05,
+      "why": "The AMS1117 needs at least 10 µF (22 µF advised) on the output to be stable."
+    },
+    "3": {
+      "name": "VIN",
+      "type": "power",
+      "range": [
+        4.5,
+        15
+      ],
+      "minCap": 1e-05,
+      "decouple": false,
+      "why": "A 10 µF input capacitor is advised."
+    }
+  }
+}

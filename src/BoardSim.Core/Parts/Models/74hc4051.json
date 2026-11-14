@@ -1,0 +1,142 @@
+{
+  "id": "74hc4051",
+  "name": "74HC4051 8-channel analog multiplexer",
+  "kind": "ic",
+  "datasheet": "https://assets.nexperia.com/documents/data-sheet/74HC_HCT4051.pdf",
+  "match": {
+    "value": [
+      "^(74|SN74|CD74|MC74)HC4051"
+    ]
+  },
+  "supply": "VCC",
+  "through": [
+    [
+      "Z",
+      "Y0"
+    ],
+    [
+      "Z",
+      "Y1"
+    ],
+    [
+      "Z",
+      "Y2"
+    ],
+    [
+      "Z",
+      "Y3"
+    ],
+    [
+      "Z",
+      "Y4"
+    ],
+    [
+      "Z",
+      "Y5"
+    ],
+    [
+      "Z",
+      "Y6"
+    ],
+    [
+      "Z",
+      "Y7"
+    ]
+  ],
+  "pins": {
+    "13": {
+      "name": "Y0",
+      "type": "analog",
+      "tristate": true,
+      "why": "Unselected channels are left open. A long cable on an open line picks up noise; a pull-down keeps it quiet."
+    },
+    "14": {
+      "name": "Y1",
+      "type": "analog",
+      "tristate": true,
+      "why": "Unselected channels are left open. A long cable on an open line picks up noise; a pull-down keeps it quiet."
+    },
+    "15": {
+      "name": "Y2",
+      "type": "analog",
+      "tristate": true,
+      "why": "Unselected channels are left open. A long cable on an open line picks up noise; a pull-down keeps it quiet."
+    },
+    "12": {
+      "name": "Y3",
+      "type": "analog",
+      "tristate": true,
+      "why": "Unselected channels are left open. A long cable on an open line picks up noise; a pull-down keeps it quiet."
+    },
+    "1": {
+      "name": "Y4",
+      "type": "analog",
+      "tristate": true,
+      "why": "Unselected channels are left open. A long cable on an open line picks up noise; a pull-down keeps it quiet."
+    },
+    "5": {
+      "name": "Y5",
+      "type": "analog",
+      "tristate": true,
+      "why": "Unselected channels are left open. A long cable on an open line picks up noise; a pull-down keeps it quiet."
+    },
+    "2": {
+      "name": "Y6",
+      "type": "analog",
+      "tristate": true,
+      "why": "Unselected channels are left open. A long cable on an open line picks up noise; a pull-down keeps it quiet."
+    },
+    "4": {
+      "name": "Y7",
+      "type": "analog",
+      "tristate": true,
+      "why": "Unselected channels are left open. A long cable on an open line picks up noise; a pull-down keeps it quiet."
+    },
+    "3": {
+      "name": "Z",
+      "type": "analog"
+    },
+    "6": {
+      "name": "E",
+      "type": "in",
+      "vih": "0.7*VCC",
+      "why": "Active-low enable. It must not float."
+    },
+    "7": {
+      "name": "VEE",
+      "type": "power",
+      "range": [
+        -6,
+        0
+      ],
+      "decouple": false
+    },
+    "8": {
+      "name": "GND",
+      "type": "ground"
+    },
+    "9": {
+      "name": "S2",
+      "type": "in",
+      "vih": "0.7*VCC"
+    },
+    "10": {
+      "name": "S1",
+      "type": "in",
+      "vih": "0.7*VCC"
+    },
+    "11": {
+      "name": "S0",
+      "type": "in",
+      "vih": "0.7*VCC"
+    },
+    "16": {
+      "name": "VCC",
+      "type": "power",
+      "range": [
+        2,
+        6
+      ]
+    }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "id": "74ahct1g125",
+  "name": "74AHCT1G125 tri-state buffer (5 V, TTL inputs)",
+  "kind": "ic",
+  "match": {
+    "value": [
+      "^(74|SN74)AHCT1G125"
+    ]
+  },
+  "supply": "VCC",
+  "through": [
+    [
+      "A",
+      "Y"
+    ]
+  ],
+  "pins": {
+    "1": {
+      "name": "OE",
+      "type": "in",
+      "vih": "2.0",
+      "maxVolts": 5.5,
+      "why": "Active-low output enable. It must not float."
+    },
+    "2": {
+      "name": "A",
+      "type": "in",
+      "vih": "2.0",
+      "maxVolts": 5.5
+    },
+    "3": {
+      "name": "GND",
+      "type": "ground"
+    },
+    "4": {
+      "name": "Y",
+      "type": "out",
+      "tristate": true
+    },
+    "5": {
+      "name": "VCC",
+      "type": "power",
+      "volts": 5,
+      "range": [
+        4.5,
+        5.5
+      ]
+    }
+  }
+}

@@ -1,0 +1,138 @@
+{
+  "id": "esp32-c3-wroom-02",
+  "name": "ESP32-C3-WROOM-02 module",
+  "kind": "ic",
+  "datasheet": "https://www.espressif.com/sites/default/files/documentation/esp32-c3-wroom-02_datasheet_en.pdf",
+  "match": {
+    "value": [
+      "ESP32-C3-WROOM-02"
+    ]
+  },
+  "supply": "3V3",
+  "pins": {
+    "1": {
+      "name": "3V3",
+      "type": "power",
+      "volts": 3.3,
+      "range": [
+        3.0,
+        3.6
+      ],
+      "why": "The module has its own decoupling, but a bulk capacitor near pin 1 is still advised.",
+      "decouple": true
+    },
+    "2": {
+      "name": "EN",
+      "type": "in",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD",
+      "internalPull": "up"
+    },
+    "3": {
+      "name": "GPIO4",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD"
+    },
+    "4": {
+      "name": "GPIO5",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD"
+    },
+    "5": {
+      "name": "GPIO6",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD"
+    },
+    "6": {
+      "name": "GPIO7",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD"
+    },
+    "7": {
+      "name": "GPIO8",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD",
+      "strap": "high",
+      "why": "GPIO8 must read high at reset for download mode. A load such as an LED to ground pulls it towards 1.8 V."
+    },
+    "8": {
+      "name": "GPIO9",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD",
+      "strap": "high",
+      "internalPull": "up",
+      "maxCap": 1.1e-09,
+      "why": "GPIO9 selects the boot mode: high = boot from flash, low = download. Espressif advises against large capacitors on it."
+    },
+    "9": {
+      "name": "GND",
+      "type": "ground"
+    },
+    "10": {
+      "name": "GPIO10",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD"
+    },
+    "11": {
+      "name": "GPIO20",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD"
+    },
+    "12": {
+      "name": "GPIO21",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD"
+    },
+    "13": {
+      "name": "GPIO18",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD"
+    },
+    "14": {
+      "name": "GPIO19",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD"
+    },
+    "15": {
+      "name": "GPIO3",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD"
+    },
+    "16": {
+      "name": "GPIO2",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD",
+      "strap": "high",
+      "why": "GPIO2 is a strapping pin and should be high at reset."
+    },
+    "17": {
+      "name": "GPIO1",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD"
+    },
+    "18": {
+      "name": "GPIO0",
+      "type": "io",
+      "maxVolts": 3.6,
+      "vih": "0.75*VDD"
+    },
+    "19": {
+      "name": "GND",
+      "type": "ground"
+    }
+  }
+}

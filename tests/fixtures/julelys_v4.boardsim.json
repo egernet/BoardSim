@@ -1,0 +1,24 @@
+{
+  // What the Julelys firmware (julelys_esp32) expects the board to connect.
+  "description": "Julelys firmware pins: main.cpp and components/led_controller/led_controller.cpp",
+  "connections": [
+    { "from": "U1.GPIO7", "to": "U2.Z",  "why": "LED data from the RMT, through level shifter U6" },
+    { "from": "U1.GPIO4", "to": "U2.S0", "why": "mux select bit 0 (changeChannel)" },
+    { "from": "U1.GPIO5", "to": "U2.S1", "why": "mux select bit 1" },
+    { "from": "U1.GPIO8", "to": "U2.S2", "why": "mux select bit 2" },
+    { "from": "U2.Y0", "to": "J4.2",  "why": "channel 0 = CH1" },
+    { "from": "U2.Y1", "to": "J5.2",  "why": "channel 1 = CH2" },
+    { "from": "U2.Y2", "to": "J6.2",  "why": "channel 2 = CH3" },
+    { "from": "U2.Y3", "to": "J7.2",  "why": "channel 3 = CH4" },
+    { "from": "U2.Y4", "to": "J8.2",  "why": "channel 4 = CH5" },
+    { "from": "U2.Y5", "to": "J9.2",  "why": "channel 5 = CH6" },
+    { "from": "U2.Y6", "to": "J10.2", "why": "channel 6 = CH7" },
+    { "from": "U2.Y7", "to": "J11.2", "why": "channel 7 = CH8" },
+    { "from": "U1.GPIO10", "to": "J1.24", "why": "SPI CS from the Pi (SPI_CS_PIN)" },
+    { "from": "U1.GPIO3",  "to": "J1.23", "why": "SPI CLK (SPI_CLK_PIN)" },
+    { "from": "U1.GPIO6",  "to": "J1.19", "why": "SPI MOSI (SPI_MOSI_PIN)" },
+    { "from": "U1.GPIO2",  "to": "J1.21", "why": "SPI MISO (SPI_MISO_PIN)" },
+    { "from": "U1.GPIO19", "to": "P1.A6", "why": "native USB D+" },
+    { "from": "U1.GPIO18", "to": "P1.A7", "why": "native USB D-" }
+  ]
+}
