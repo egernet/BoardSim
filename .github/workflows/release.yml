@@ -1,0 +1,74 @@
+name: release
+
+# Tag vX.Y.Z (or run by hand) to build BoardSim for Windows, Linux and macOS
+# with the emulator from qemu-boardsim's release, and publish a pre-release.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (without v)'
+        required: true
+
+env:
+  QEMU_TAG: boardsim-v1.0
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - run: dotnet test
+
+  package:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: windows-x64, runs_on: ubuntu-22.04, qemu: zip }
+          - { platform: linux-x64, runs_on: ubuntu-22.04, qemu: tar.gz }
+          - { platform: linux-arm64, runs_on: ubuntu-22.04, qemu: tar.gz }
+          - { platform: macos-arm64, runs_on: macos-latest, qemu: tar.gz }
+    runs-on: ${{ matrix.runs_on }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - name: Version
+        shell: bash
+        run: |
+          V="${{ github.event.inputs.version }}"; [ -z "$V" ] && V="${GITHUB_REF_NAME#v}"
+          echo "VERSION=$V" >> "$GITHUB_ENV"
+      - name: Emulator (qemu-boardsim ${{ env.QEMU_TAG }})
+        shell: bash
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          gh release download "$QEMU_TAG" -R egernet/qemu-boardsim -p "qemu-boardsim-${{ matrix.platform }}.${{ matrix.qemu }}" -D "$RUNNER_TEMP"
+          cd "$RUNNER_TEMP"
+          if [ "${{ matrix.qemu }}" = zip ]; then unzip -q qemu-boardsim-*.zip; else tar -xzf qemu-boardsim-*.tar.gz; fi
+      - name: Package
+        shell: bash
+        run: scripts/package.sh ${{ matrix.platform }} "$VERSION" "$RUNNER_TEMP/qemu"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: boardsim-${{ matrix.platform }}
+          path: dist/BoardSim-*
+
+  release:
+    needs: package
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.version && format('v{0}', github.event.inputs.version) || github.ref_name }}
+          prerelease: true
+          draft: true
+          files: dist/*

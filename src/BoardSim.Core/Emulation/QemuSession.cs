@@ -140,6 +140,7 @@ public sealed class QemuSession : IDisposable
         _process.Start();
         // QEMU must not outlive us, however we stop (Ctrl+C, kill, a crash).
         lock (Running) Running.Add(_process);
+        if (OperatingSystem.IsWindows()) WindowsJob.Adopt(_process);
         _process.BeginOutputReadLine();
         _process.BeginErrorReadLine();
 
@@ -216,8 +217,12 @@ public sealed class QemuSession : IDisposable
                     try { if (!p.HasExited) p.Kill(); } catch (Exception) { }
         }
         AppDomain.CurrentDomain.ProcessExit += (_, _) => KillAll();
-        System.Runtime.InteropServices.PosixSignalRegistration.Create(System.Runtime.InteropServices.PosixSignal.SIGTERM, ctx => { KillAll(); });
-        System.Runtime.InteropServices.PosixSignalRegistration.Create(System.Runtime.InteropServices.PosixSignal.SIGHUP, ctx => { KillAll(); });
+        foreach (var signal in new[] { System.Runtime.InteropServices.PosixSignal.SIGTERM, System.Runtime.InteropServices.PosixSignal.SIGHUP })
+        {
+            // Not every signal exists on every OS (Windows maps only some of them).
+            try { System.Runtime.InteropServices.PosixSignalRegistration.Create(signal, _ => KillAll()); }
+            catch (PlatformNotSupportedException) { }
+        }
     }
 
     public void Stop()
@@ -232,4 +237,63 @@ public sealed class QemuSession : IDisposable
     }
 
     public void Dispose() => Stop();
+}
+
+/// <summary>
+/// On Windows a child process survives its parent unless both sit in a job
+/// object that kills its members when the last handle closes - which happens
+/// however BoardSim ends, even if it crashes.
+/// </summary>
+internal static class WindowsJob
+{
+    private static IntPtr _job;
+
+    public static void Adopt(Process process)
+    {
+        try
+        {
+            if (_job == IntPtr.Zero)
+            {
+                _job = CreateJobObject(IntPtr.Zero, null);
+                var info = new JOBOBJECT_EXTENDED_LIMIT_INFORMATION();
+                info.BasicLimitInformation.LimitFlags = 0x2000; // JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+                var size = System.Runtime.InteropServices.Marshal.SizeOf(info);
+                var ptr = System.Runtime.InteropServices.Marshal.AllocHGlobal(size);
+                System.Runtime.InteropServices.Marshal.StructureToPtr(info, ptr, false);
+                SetInformationJobObject(_job, 9 /* JobObjectExtendedLimitInformation */, ptr, (uint)size);
+                System.Runtime.InteropServices.Marshal.FreeHGlobal(ptr);
+            }
+            AssignProcessToJobObject(_job, process.Handle);
+        }
+        catch (Exception) { }
+    }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct JOBOBJECT_BASIC_LIMIT_INFORMATION
+    {
+        public long PerProcessUserTimeLimit, PerJobUserTimeLimit;
+        public uint LimitFlags;
+        public UIntPtr MinimumWorkingSetSize, MaximumWorkingSetSize;
+        public uint ActiveProcessLimit;
+        public UIntPtr Affinity;
+        public uint PriorityClass, SchedulingClass;
+    }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct IO_COUNTERS { public ulong A, B, C, D, E, F; }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct JOBOBJECT_EXTENDED_LIMIT_INFORMATION
+    {
+        public JOBOBJECT_BASIC_LIMIT_INFORMATION BasicLimitInformation;
+        public IO_COUNTERS IoInfo;
+        public UIntPtr ProcessMemoryLimit, JobMemoryLimit, PeakProcessMemoryUsed, PeakJobMemoryUsed;
+    }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern IntPtr CreateJobObject(IntPtr attributes, string? name);
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    private static extern bool SetInformationJobObject(IntPtr job, int infoClass, IntPtr info, uint length);
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    private static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
 }

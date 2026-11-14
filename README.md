@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/egernet/BoardSim/releases"><b>Download for Mac</b></a> ·
+  <a href="https://github.com/egernet/BoardSim/releases"><b>Download for Windows, Linux and Mac</b></a> ·
   <a href="#quick-start">Quick start</a> ·
   <a href="#flash-it-like-a-real-board">Flash with idf.py</a> ·
   <a href="#how-it-works">How it works</a>
@@ -40,20 +40,42 @@ and 4.8 V on the connector.</i></p>
 
 ## Quick start
 
-### On a Mac (Apple Silicon)
+Download the archive for your computer from the [releases page](https://github.com/egernet/BoardSim/releases).
+Each one carries its own .NET runtime, the emulator and an example board with firmware - nothing
+else to install.
 
-1. Download **BoardSim-…-macos-arm64.zip** from the [releases page](https://github.com/egernet/BoardSim/releases) and unzip it.
-2. Move **BoardSim.app** to *Applications*.
-3. The app is not notarised by Apple, so macOS stops it the first time. Run this once in Terminal:
+### Windows (x64)
+
+1. Unzip **BoardSim-…-windows-x64.zip** anywhere, e.g. `C:\Tools\BoardSim`.
+2. Start **BoardSim.exe**. Windows SmartScreen may warn about an unknown publisher the first time:
+   *More info → Run anyway*.
+3. Press **Try the Julelys example**.
+
+### Linux (x64 or arm64, e.g. a Raspberry Pi 4/5)
+
+```bash
+tar -xzf BoardSim-*-linux-x64.tar.gz      # or linux-arm64
+cd BoardSim
+./BoardSim                                # needs a desktop (X11 or XWayland)
+./install-desktop-entry.sh                # optional: add it to the application menu
+```
+
+Built on Ubuntu 22.04: any Linux with glibc 2.35 or newer (Ubuntu 22.04+, Debian 12+, Fedora 36+,
+Raspberry Pi OS Bookworm).
+
+### Mac (Apple Silicon)
+
+1. Unzip **BoardSim-…-macos-arm64.zip** and move **BoardSim.app** to *Applications*.
+2. The app is not notarised by Apple, so macOS stops it the first time. Run this once in Terminal:
    ```bash
    xattr -dr com.apple.quarantine /Applications/BoardSim.app
    ```
    (or open it, then *System Settings → Privacy & Security → Open Anyway*).
-4. Open BoardSim and press **Try the Julelys example**.
+3. Open BoardSim and press **Try the Julelys example**.
 
-That's all: the app carries its own .NET runtime, the emulator and an example board with firmware.
 Within a few seconds the chip boots, gets an IP address on its emulated network and plays a rainbow
-on its four LED strings.
+on its four LED strings. The command-line tool is `boardsim-cli` next to the app
+(`boardsim-cli chip board.kicad_pcb` runs a board headless).
 
 ### Things to try in the example
 
@@ -213,6 +235,8 @@ Blue is 0 V, amber 3.3 V, red 5 V, purple in between, grey floating, flashing re
 - **BoardSim.Core** - KiCad loader (KiCad 6-10), connectivity, rules, part models, the DC simulator
   and the emulation bridge. No UI.
 - **BoardSim.App** - the Avalonia desktop app (Windows, macOS, Linux).
+- Releases: tag `vX.Y.Z` and `.github/workflows/release.yml` packages every platform with the
+  emulator from qemu-boardsim's release (`scripts/package.sh`).
 - **BoardSim.Cli** - `boardsim check | parts | pins | chip | gpio`.
 - **clients/python** - `boardsim_gpio.py` (RPi.GPIO style) and `pi_bridge.py` (real Pi pins).
 - **[qemu-boardsim](https://github.com/egernet/qemu-boardsim)** - Espressif's QEMU with ESP32-C3
@@ -234,7 +258,6 @@ Firmware emulation needs the QEMU fork. Build it from
 
 ## Roadmap
 
-- Release builds for Windows and Linux.
 - More part models, and more chips than the ESP32-C3.
 
 ## License

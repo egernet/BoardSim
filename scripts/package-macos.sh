@@ -14,7 +14,7 @@ QEMU_SRC="${QEMU_SRC:-$ROOT/../qemu-esp/src}"
 OUT="$ROOT/dist"
 APP="$OUT/BoardSim.app"
 
-rm -rf "$OUT"
+rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 echo "== .NET app (self-contained, osx-arm64)"
@@ -22,7 +22,12 @@ dotnet publish "$ROOT/src/BoardSim.App" -c Release -r osx-arm64 --self-contained
   -p:UseAppHost=true -p:DebugType=none -o "$APP/Contents/MacOS" > "$OUT/publish.log"
 
 echo "== QEMU fork"
-"$ROOT/scripts/bundle-qemu-macos.sh" "$QEMU_BUILD" "$QEMU_SRC" "$APP/Contents/MacOS/qemu" > "$OUT/qemu.log"
+if [ -n "${QEMU_DIR:-}" ]; then
+  # A ready qemu-boardsim archive (CI): already bundled and signed.
+  cp -R "$QEMU_DIR" "$APP/Contents/MacOS/qemu"
+else
+  "$ROOT/scripts/bundle-qemu-macos.sh" "$QEMU_BUILD" "$QEMU_SRC" "$APP/Contents/MacOS/qemu" > "$OUT/qemu.log"
+fi
 
 echo "== Example"
 cp -R "$ROOT/examples" "$APP/Contents/MacOS/examples"

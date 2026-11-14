@@ -40,7 +40,20 @@ released for Windows, macOS and Linux, so UI text and messages are English.
 - `tests/` - xunit, fixtures are Julelys v4 and v3.1 plus KiCad's IPC-D-356
   exports of them.
 
-## Packaging (macOS)
+## Packaging and releases
+
+`scripts/package.sh <platform> <version> <qemu dir>` packages one platform
+(windows-x64, linux-x64, linux-arm64, macos-arm64) with an unpacked
+qemu-boardsim archive. `.github/workflows/release.yml` does it for all of them
+on a `v*` tag (draft pre-release) with the emulator from qemu-boardsim's
+`QEMU_TAG` release; qemu-boardsim's own `boardsim.yml` builds those archives
+(Windows static via MSYS2 UCRT64, Linux with bundled .so files and $ORIGIN,
+macOS with bundled dylibs). The CLI is shipped as `boardsim-cli`: "boardsim"
+would clash with "BoardSim" on case-insensitive file systems.
+Test Linux locally: unpack the linux-arm64 tarball and run it in an
+`ubuntu:22.04` container (GUI under `xvfb-run`).
+
+## Packaging (macOS, by hand)
 
 `scripts/package-macos.sh <version>` builds `dist/BoardSim.app` (self-contained
 .NET, QEMU from `../qemu-esp` bundled with its dylibs by
