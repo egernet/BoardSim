@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.OpenGL;
 using Avalonia.OpenGL.Controls;
@@ -159,7 +160,9 @@ public sealed class Board3DView : OpenGlControlBase
         var target = centre + right * _pan.X + up * _pan.Y;
         var view = Matrix4x4.CreateLookAt(target + dir * _distance, target, up);
         var size = Vector3.Distance(m.Min, m.Max);
-        var proj = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 4.5f, (float)w / h, Math.Max(0.1f, _distance - size * 2), _distance + size * 2);
+        // Near plane as far out as the model allows: depth precision depends on it (KiCad's layers are 0.01 mm apart).
+        var near = Math.Max(_distance * 0.05f, _distance - size * 0.75f);
+        var proj = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 4.5f, (float)w / h, near, _distance + size);
         var mvp = view * proj;
         gl.UniformMatrix4fv(_uMvp, 1, false, &mvp);
         gl.UniformMatrix4fv(_uView, 1, false, &view);
@@ -168,34 +171,80 @@ public sealed class Board3DView : OpenGlControlBase
         gl.UseProgram(0);
     }
 
+    /// <summary>Turns the camera: dx/dy in screen pixels.</summary>
+    public void Orbit(double dx, double dy)
+    {
+        _yaw -= (float)dx * 0.4f;
+        _pitch = Math.Clamp(_pitch - (float)dy * 0.4f, 0f, 179f);
+        RequestNextFrameRendering();
+    }
+
+    /// <summary>Moves the camera sideways: dx/dy in screen pixels.</summary>
+    public void Pan(double dx, double dy)
+    {
+        var k = _distance / (float)Math.Max(200, Bounds.Height) * 0.9f;
+        _pan += new Vector2((float)-dx * k, (float)dy * k);
+        RequestNextFrameRendering();
+    }
+
+    /// <summary>Zooms in (factor below 1) or out.</summary>
+    public void Zoom(double factor)
+    {
+        if (_mesh is null) return;
+        var size = Vector3.Distance(_mesh.Min, _mesh.Max);
+        _distance = Math.Clamp(_distance * (float)factor, size * 0.08f, size * 8);
+        RequestNextFrameRendering();
+    }
+}
+
+/// <summary>
+/// Takes the mouse for a <see cref="Board3DView"/>: an OpenGL control is not
+/// hit-tested, so this transparent layer on top of it is. Drag turns the board,
+/// right-drag or shift-drag moves it, the wheel or a pinch zooms, a
+/// double-click resets.
+/// </summary>
+public sealed class Board3DInput : Border
+{
+    private Point? _drag;
+    private bool _panning;
+    private double _pinch = 1;
+
+    public Board3DView? View { get; set; }
+
+    public Board3DInput()
+    {
+        Background = Avalonia.Media.Brushes.Transparent;
+        Cursor = new Cursor(StandardCursorType.SizeAll);
+        GestureRecognizers.Add(new PinchGestureRecognizer());
+        // Pinch reports the scale since the gesture began; zoom by the change since the last event.
+        AddHandler(Gestures.PinchEvent, (_, e) =>
+        {
+            if (e.Scale > 0 && double.IsFinite(e.Scale)) View?.Zoom(_pinch / e.Scale);
+            _pinch = e.Scale;
+            e.Handled = true;
+        });
+        AddHandler(Gestures.PinchEndedEvent, (_, _) => _pinch = 1);
+    }
+
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
-        if (e.ClickCount == 2) { ResetView(); return; }
+        if (e.ClickCount == 2) { View?.ResetView(); return; }
         _drag = e.GetPosition(this);
         var props = e.GetCurrentPoint(this).Properties;
         _panning = props.IsRightButtonPressed || props.IsMiddleButtonPressed || e.KeyModifiers.HasFlag(KeyModifiers.Shift);
         e.Pointer.Capture(this);
+        e.Handled = true;
     }
 
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
-        if (_drag is not { } from) return;
+        if (_drag is not { } from || View is null) return;
         var p = e.GetPosition(this);
         var d = p - from;
         _drag = p;
-        if (_panning)
-        {
-            var k = _distance / (float)Math.Max(200, Bounds.Height) * 0.9f;
-            _pan += new Vector2((float)-d.X * k, (float)d.Y * k);
-        }
-        else
-        {
-            _yaw -= (float)d.X * 0.4f;
-            _pitch = Math.Clamp(_pitch - (float)d.Y * 0.4f, 0f, 179f);
-        }
-        RequestNextFrameRendering();
+        if (_panning) View.Pan(d.X, d.Y); else View.Orbit(d.X, d.Y);
     }
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
@@ -208,7 +257,8 @@ public sealed class Board3DView : OpenGlControlBase
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
         base.OnPointerWheelChanged(e);
-        _distance = Math.Clamp(_distance * MathF.Pow(0.88f, (float)e.Delta.Y), 5, 2000);
-        RequestNextFrameRendering();
+        // Mouse wheel: whole notches. Trackpad: small deltas in both directions; vertical zooms.
+        View?.Zoom(Math.Pow(0.88, e.Delta.Y));
+        e.Handled = true;
     }
 }

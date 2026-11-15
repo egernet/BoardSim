@@ -245,25 +245,45 @@ public partial class MainWindow : Window
     {
         View3DButton.IsChecked = on;
         Board3D.IsVisible = on;
+        Board3DInput.IsVisible = on;
+        Board3DInput.View = Board3D;
         Board.IsVisible = !on;
         Board3DStatusBox.IsVisible = on;
         if (!on) return;
         RealButton.IsChecked = LayersButton.IsChecked = false;
         if (_report is not { } r || _meshFor == r) return;
         _meshFor = r;
+        // Never show the previous board while the new one is built.
+        Board3D.Mesh = null;
         Board3DStatus.Text = "Finding the 3D models…";
-        var components = _components ?? await Task.Run(() => ComponentData.For(r.Circuit));
-        var models = components.Count(c => c.Model3D is { Source: not DataSource.Missing });
-        Board3DStatus.Text = Board3DMesh.FindKiCadCli() is null ? "KiCad not found: drawing boxes" : $"Building the 3D model with KiCad ({models} part models)… the first time takes up to a minute";
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        var mesh = await Task.Run(() => Board3DMesh.BuildAsync(r.Circuit, components));
-        if (_report != r) return;
-        Board3D.Mesh = mesh;
-        var missing = components.Count(c => c.Model3D is { Source: DataSource.Missing });
-        Board3DStatus.Text = $"{mesh.Source} · {mesh.Triangles:N0} triangles · {models} models" +
-                             (missing > 0 ? $", {missing} missing (see Parts)" : "") +
-                             (Board3D.Error is { } err ? $" · OpenGL: {err}" : "") +
-                             " · drag to turn, scroll to zoom, shift-drag to move";
+        try
+        {
+            var components = _components ?? await Task.Run(() => ComponentData.For(r.Circuit));
+            var models = components.Count(c => c.Model3D is { Source: not DataSource.Missing });
+            var hasKiCad = Board3DMesh.FindKiCadCli() is not null;
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            void Tick() => Board3DStatus.Text = hasKiCad
+                ? $"Building {r.Board.Title} in 3D with KiCad ({models} part models)… {sw.Elapsed.TotalSeconds:0} s (a new board takes up to a few minutes, then it is cached)"
+                : "KiCad not found: drawing boxes";
+            timer.Tick += (_, _) => { if (_report == r) Tick(); else timer.Stop(); };
+            Tick();
+            timer.Start();
+            Mesh3D mesh;
+            try { mesh = await Task.Run(() => Board3DMesh.BuildAsync(r.Circuit, components)); }
+            finally { timer.Stop(); }
+            if (_report != r) return;
+            Board3D.Mesh = mesh;
+            var missing = components.Count(c => c.Model3D is { Source: DataSource.Missing });
+            Board3DStatus.Text = $"{r.Board.Title} · {mesh.Source} · {mesh.Triangles:N0} triangles · {models} models" +
+                                 (missing > 0 ? $", {missing} missing (see Parts)" : "") +
+                                 (Board3D.Error is { } err ? $" · OpenGL: {err}" : "") +
+                                 " · drag to turn, scroll or pinch to zoom, shift-drag to move, double-click to reset";
+        }
+        catch (Exception e)
+        {
+            if (_report == r) { Board3DStatus.Text = $"Could not build the 3D view: {e.Message}"; _meshFor = null; }
+        }
     }
 
     private async Task PickBoard()

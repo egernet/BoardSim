@@ -254,7 +254,7 @@ public static class Glb
                     var attrs = prim.GetProperty("attributes");
                     var pos = ReadFloats(bytes, binStart, accessors, views, attrs.GetProperty("POSITION").GetInt32(), 3);
                     var nor = attrs.TryGetProperty("NORMAL", out var na) ? ReadFloats(bytes, binStart, accessors, views, na.GetInt32(), 3) : null;
-                    var color = MaterialColor(materials, prim);
+                    var (color, lift) = MaterialColor(materials, prim);
                     var baseIndex = (uint)(p.Count / 3);
                     var full = world * toBoard;
                     Matrix4x4.Invert(full, out var inv);
@@ -262,8 +262,10 @@ public static class Glb
                     for (var i = 0; i < pos.Length; i += 3)
                     {
                         var v = Vector3.Transform(new Vector3(pos[i], pos[i + 1], pos[i + 2]), full);
-                        p.Add(v.X); p.Add(v.Y); p.Add(v.Z);
                         var nv = nor is null ? Vector3.UnitZ : Vector3.Normalize(Vector3.TransformNormal(new Vector3(nor[i], nor[i + 1], nor[i + 2]), normalM));
+                        // KiCad stacks copper, mask and silkscreen 0.01 mm apart; lift mask and silk off the copper so depth testing can tell them apart.
+                        if (lift != 0) v += nv * lift;
+                        p.Add(v.X); p.Add(v.Y); p.Add(v.Z);
                         n.Add(nv.X); n.Add(nv.Y); n.Add(nv.Z);
                         c.Add(color.X); c.Add(color.Y); c.Add(color.Z);
                     }
@@ -288,16 +290,22 @@ public static class Glb
     private static Vector3 Vec(JsonElement e) { var a = e.EnumerateArray().Select(x => (float)x.GetDouble()).ToArray(); return new(a[0], a[1], a[2]); }
     private static Quaternion Quat(JsonElement e) { var a = e.EnumerateArray().Select(x => (float)x.GetDouble()).ToArray(); return new(a[0], a[1], a[2], a[3]); }
 
-    /// <summary>The material's base colour, with KiCad's see-through solder mask and silkscreen made solid.</summary>
-    private static Vector3 MaterialColor(JsonElement[] materials, JsonElement prim)
+    /// <summary>
+    /// The material's base colour, with KiCad's see-through solder mask made
+    /// solid, and how far (mm) to lift the surface along its normal: mask and
+    /// silkscreen sit just above the copper.
+    /// </summary>
+    private static (Vector3 Color, float Lift) MaterialColor(JsonElement[] materials, JsonElement prim)
     {
-        if (materials.Length == 0 || !prim.TryGetProperty("material", out var mi)) return new(0.6f, 0.6f, 0.6f);
+        var grey = (new Vector3(0.6f, 0.6f, 0.6f), 0f);
+        if (materials.Length == 0 || !prim.TryGetProperty("material", out var mi)) return grey;
         var m = materials[mi.GetInt32()];
-        if (!m.TryGetProperty("pbrMetallicRoughness", out var pbr) || !pbr.TryGetProperty("baseColorFactor", out var bc)) return new(0.6f, 0.6f, 0.6f);
+        if (!m.TryGetProperty("pbrMetallicRoughness", out var pbr) || !pbr.TryGetProperty("baseColorFactor", out var bc)) return grey;
         var f = bc.EnumerateArray().Select(x => (float)x.GetDouble()).ToArray();
         var alpha = f.Length > 3 ? f[3] : 1;
-        if (alpha is > 0.8f and < 0.86f) return new(0.03f, 0.22f, 0.09f);   // solder mask
-        return new(f[0], f[1], f[2]);
+        if (alpha is > 0.8f and < 0.86f) return (new(0.03f, 0.22f, 0.09f), 0.03f);   // solder mask
+        if (alpha is >= 0.86f and < 0.95f) return (new(f[0], f[1], f[2]), 0.06f);    // silkscreen
+        return (new(f[0], f[1], f[2]), 0f);
     }
 
     private static (int Offset, int Stride, int Count, int Type) View(JsonElement[] accessors, JsonElement[] views, int accessor, int components, int size)

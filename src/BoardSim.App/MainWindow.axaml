@@ -64,6 +64,7 @@
       <Grid RowDefinitions="*,Auto,Auto">
         <c:BoardView x:Name="Board"/>
         <c:Board3DView x:Name="Board3D" IsVisible="False"/>
+        <c:Board3DInput x:Name="Board3DInput" IsVisible="False"/>
         <Border x:Name="Board3DStatusBox" IsVisible="False" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="16"
                 Background="#cc151920" CornerRadius="8" Padding="10,6">
           <TextBlock x:Name="Board3DStatus" FontSize="12" Classes="muted"/>
