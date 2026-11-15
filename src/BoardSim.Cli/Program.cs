@@ -1,4 +1,7 @@
+using System.Globalization;
 using BoardSim.Core.Analysis;
+using BoardSim.Core.Components;
+using BoardSim.Core.Emc;
 using BoardSim.Core.Emulation;
 using BoardSim.Core.KiCad;
 using BoardSim.Core.Parts;
@@ -21,6 +24,9 @@ if (args.Length < 2 || args[0] is "-h" or "--help")
                                                      USB port: idf.py -p rfc2217://localhost:4141 flash
                                                      and its pins on localhost:4142 (--lan: on the network)
           boardsim gpio  <board.kicad_pcb> [--lan]  serve the simulated board's pins on port 4142
+          boardsim 3d    <board.kicad_pcb>           build the 3D model with the real part models (needs KiCad)
+          boardsim emc   <board.kicad_pcb> [--parts] noise and emission estimates: signals, return paths,
+                                                     crosstalk and radiated emission against CISPR 32 class B
 
         Expected connections are read from <board>.boardsim.json next to the board.
         Extra part models (*.part.json) are read from a boardsim-parts folder next to it.
@@ -75,6 +81,65 @@ switch (command)
                                   (pin.Net.Volts is { } v ? $"  ({v} V)" : ""));
         }
         return 0;
+    }
+    case "3d":
+    {
+        var report = Checker.Run(path);
+        var components = ComponentData.For(report.Circuit);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var mesh = Board3D.BuildAsync(report.Circuit, components, Console.WriteLine).GetAwaiter().GetResult();
+        Console.WriteLine($"{mesh.Source}: {mesh.Triangles:N0} triangles, {mesh.Positions.Length / 3:N0} vertices in {sw.Elapsed.TotalSeconds:0.0} s");
+        Console.WriteLine($"bounds {mesh.Min} - {mesh.Max} mm");
+        foreach (var side in new[] { BoardSim.Core.Model.Side.Front, BoardSim.Core.Model.Side.Back })
+        {
+            sw.Restart();
+            if (BoardRenders.RenderAsync(report.Board, components, side).GetAwaiter().GetResult() is { } r)
+                Console.WriteLine($"{side}: {r.WithParts.Image} covers {r.WithParts.Area} ({sw.Elapsed.TotalSeconds:0.0} s)");
+        }
+        return 0;
+    }
+    case "emc":
+    {
+        var report = Checker.Run(path);
+        var emc = EmcAnalysis.For(report.Circuit, report.Expectations);
+        var st = emc.Routes.Stackup;
+        string F(double v, string fmt = "0.#") => v.ToString(fmt, CultureInfo.InvariantCulture);
+        Console.WriteLine($"{report.Board.Title}: stackup {(st.FromFile ? "from the board file" : "assumed (JLC standard)")}: " +
+                          string.Join(" | ", st.Copper.Select(l => $"{l} {F(st.Z(l), "0.###")} mm")));
+        foreach (var (layer, net, area) in emc.Routes.Planes.Planes().OrderBy(p => st.Z(p.Layer)))
+            Console.WriteLine($"  plane {layer,-7} {net,-12} {F(area, "0")} mm²");
+        Console.WriteLine();
+        Console.WriteLine($"{"net",-16} {"signal",-26} {"edge",7} {"I",7} {"len",6} {"vias",4} {"loop",8} {"no ref",6}  references");
+        foreach (var a in emc.Active)
+        {
+            var r = a.Route;
+            var refs = string.Join(", ", r.ByReference.OrderByDescending(x => x.Value).Select(x => $"{x.Key} {F(x.Value, "0")}"));
+            Console.WriteLine($"{Trim(a.Net.DisplayName, 16),-16} {Trim($"{a.Signal.Name} {Hz(a.Signal.Hz)}", 26),-26} {F(a.EdgeNs, "0.0") + "ns",7} {F(a.CurrentA * 1000, "0") + "mA",7} " +
+                              $"{F(r.Length, "0"),6} {r.Vias,4} {F(r.LoopArea, "0.0") + "mm²",8} {F(r.Unreferenced, "0"),6}  {refs}");
+        }
+        Console.WriteLine();
+        Console.WriteLine("Radiated emission estimate at 3 m (CISPR 32 class B: 40 dBµV/m below 230 MHz, 47 above):");
+        foreach (var (a, peak) in emc.Active.Select(a => (a, emc.Peak(a))).OrderBy(x => x.Item2.Margin).Take(12))
+            Console.WriteLine($"  {Trim(a.Net.DisplayName, 16),-16} peak {F(peak.Level, "0")} dBµV/m at {Hz(peak.Hz),-9} margin {F(peak.Margin, "0"),4} dB" +
+                              (a.LeavesBoard ? $"   (cable on {string.Join(",", a.Exits.Select(e => e.Part.Reference).Distinct())}, {F(a.CableMetres)} m)" : ""));
+        Console.WriteLine();
+        Console.WriteLine("Crosstalk (backward, estimate):");
+        foreach (var x in emc.Crosstalk().Take(8))
+            Console.WriteLine($"  {Trim(x.Aggressor.Net.DisplayName, 14),-14} -> {Trim(x.Victim.DisplayName, 14),-14} {F(x.Percent, "0.00")} %  ({F(x.ParallelMm, "0")} mm parallel, gap {F(x.GapMm, "0.00")} mm, {x.Layer})");
+        Console.WriteLine();
+        Console.WriteLine("Edge data: " + string.Join("; ", emc.Active.Select(a => a.Signal.Data).Distinct()));
+        if (args.Contains("--parts"))
+        {
+            Console.WriteLine();
+            Console.WriteLine($"{"part",-7} {"value",-24} {"part model",-22} {"3D model",-12} {"height",7}  file");
+            foreach (var c in ComponentData.For(report.Circuit).OrderBy(c => c.Part.Footprint.Prefix).ThenBy(c => c.Part.Reference.Length).ThenBy(c => c.Part.Reference))
+                Console.WriteLine($"{c.Part.Reference,-7} {Trim(c.Part.Footprint.Value, 24),-24} {c.PartModel ?? "generic",-22} " +
+                                  $"{c.Model3D?.Source.ToString() ?? "none",-12} {(c.Model3D?.HeightMm is { } hm ? F(hm, "0.0") + " mm" : ""),7}  {c.Model3D?.File ?? c.Model3D?.Model.Path ?? ""}");
+        }
+        return 0;
+
+        static string Trim(string s, int n) => s.Length <= n ? s : s[..(n - 1)] + "…";
+        static string Hz(double hz) => hz >= 1e6 ? (hz / 1e6).ToString("0.##", CultureInfo.InvariantCulture) + " MHz" : (hz / 1e3).ToString("0.#", CultureInfo.InvariantCulture) + " kHz";
     }
     case "chip":
     {

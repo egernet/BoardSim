@@ -29,7 +29,9 @@
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="0">
             <ToggleButton x:Name="RealButton" Classes="tool" Content="Realistic" IsChecked="True" CornerRadius="8,0,0,8"/>
-            <ToggleButton x:Name="LayersButton" Classes="tool" Content="Layers" CornerRadius="0,8,8,0"/>
+            <ToggleButton x:Name="LayersButton" Classes="tool" Content="Layers" CornerRadius="0"/>
+            <ToggleButton x:Name="View3DButton" Classes="tool" Content="3D" CornerRadius="0,8,8,0"
+                          ToolTip.Tip="The board in 3D with the real component models (built with KiCad). Drag to turn, scroll to zoom, shift-drag to move, double-click to reset."/>
           </StackPanel>
           <ToggleButton x:Name="SimButton" Classes="tool sim" ToolTip.Tip="Simulate the board: drive pins, press buttons, watch the voltages">
             <StackPanel Orientation="Horizontal" Spacing="7">
@@ -61,6 +63,11 @@
     <Grid Grid.Row="1" ColumnDefinitions="*,420">
       <Grid RowDefinitions="*,Auto,Auto">
         <c:BoardView x:Name="Board"/>
+        <c:Board3DView x:Name="Board3D" IsVisible="False"/>
+        <Border x:Name="Board3DStatusBox" IsVisible="False" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="16"
+                Background="#cc151920" CornerRadius="8" Padding="10,6">
+          <TextBlock x:Name="Board3DStatus" FontSize="12" Classes="muted"/>
+        </Border>
         <c:StringsView x:Name="Strings" Grid.Row="1" Margin="16,0,16,12" Height="0" IsHitTestVisible="False"/>
         <Border x:Name="ScopePanel" Grid.Row="2" Margin="16,0,16,14" IsVisible="False">
           <Grid RowDefinitions="Auto,240">
@@ -198,6 +205,31 @@
                          FontFamily="Menlo, Consolas, DejaVu Sans Mono, monospace" FontSize="12"/>
               </Grid>
             </TabItem>
+            <TabItem Header="EMC" x:Name="EmcTab">
+              <Grid RowDefinitions="Auto,Auto,*" Margin="0,6,0,0">
+                <c:SpectrumView x:Name="Spectrum" Height="230"/>
+                <TextBlock x:Name="EmcSummary" Grid.Row="1" TextWrapping="Wrap" FontSize="11" Classes="muted" Margin="2,8,2,6"
+                           Text="Load a board to estimate its noise and radiated emission."/>
+                <ListBox x:Name="EmcList" Grid.Row="2" SelectionMode="Single">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:EmcNetItem">
+                      <Border Padding="12,8" CornerRadius="10" Background="#171c24">
+                        <Grid ColumnDefinitions="*,Auto">
+                          <StackPanel Spacing="2">
+                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="13"/>
+                            <TextBlock Text="{Binding Detail}" FontSize="11" Classes="muted" TextWrapping="Wrap"/>
+                            <TextBlock Text="{Binding Data}" FontSize="10" Foreground="#6b7380" TextWrapping="Wrap"/>
+                          </StackPanel>
+                          <Border Grid.Column="1" CornerRadius="6" Padding="7,2" VerticalAlignment="Top" Background="{Binding MarginBackground}">
+                            <TextBlock Text="{Binding MarginLabel}" FontSize="11" Foreground="{Binding MarginForeground}"/>
+                          </Border>
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </Grid>
+            </TabItem>
             <TabItem Header="Parts">
               <ListBox x:Name="PartsList">
                 <ListBox.ItemTemplate>
@@ -209,9 +241,14 @@
                           <TextBlock Text="{Binding Value}" FontSize="13"/>
                           <TextBlock Text="{Binding Kind}" FontSize="11" Classes="muted"/>
                         </StackPanel>
-                        <Border Grid.Column="2" CornerRadius="6" Padding="7,2" VerticalAlignment="Center" Background="{Binding ModelBackground}">
-                          <TextBlock Text="{Binding ModelLabel}" FontSize="11" Foreground="{Binding ModelForeground}"/>
-                        </Border>
+                        <StackPanel Grid.Column="2" Spacing="3" VerticalAlignment="Center">
+                          <Border CornerRadius="6" Padding="7,2" HorizontalAlignment="Right" Background="{Binding ModelBackground}">
+                            <TextBlock Text="{Binding ModelLabel}" FontSize="11" Foreground="{Binding ModelForeground}"/>
+                          </Border>
+                          <Border CornerRadius="6" Padding="7,2" HorizontalAlignment="Right" Background="{Binding Model3DBackground}" ToolTip.Tip="{Binding Model3DFile}">
+                            <TextBlock Text="{Binding Model3DLabel}" FontSize="11" Foreground="{Binding Model3DForeground}"/>
+                          </Border>
+                        </StackPanel>
                       </Grid>
                     </Border>
                   </DataTemplate>

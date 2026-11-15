@@ -139,6 +139,8 @@ public sealed class Footprint
     public Dictionary<string, string> Properties { get; } = new(StringComparer.OrdinalIgnoreCase);
     public List<Pad> Pads { get; } = new();
     public List<Shape> Graphics { get; } = new();
+    /// <summary>3D models as the footprint names them (paths may contain ${KIPRJMOD} and similar).</summary>
+    public List<Model3D> Models { get; } = new();
 
     /// <summary>Reference designator prefix, e.g. "R" for R14, "TP" for TP26.</summary>
     public string Prefix => new(Reference.TakeWhile(char.IsLetter).ToArray());
@@ -160,6 +162,16 @@ public sealed class Footprint
 public sealed record Track(Vec2 Start, Vec2 End, double Width, string Layer, string Net, Vec2? Mid = null)
 {
     public bool IsArc => Mid is not null;
+}
+
+/// <summary>A 3D model reference on a footprint: path plus offset (mm), scale and rotation (degrees).</summary>
+public sealed record Model3D(string Path, double[] Offset, double[] Scale, double[] Rotate, bool Hidden);
+
+/// <summary>One layer of the board stackup, top to bottom; thickness in mm.</summary>
+public sealed record StackLayer(string Name, string Type, double Thickness, double EpsilonR)
+{
+    public bool IsCopper => Type == "copper";
+    public bool IsDielectric => Type is "core" or "prepreg" or "dielectric";
 }
 
 public sealed record Via(Vec2 Position, double Size, double Drill, IReadOnlyList<string> Layers, string Net);
@@ -195,6 +207,8 @@ public sealed class Board
     public List<Via> Vias { get; } = new();
     public List<Zone> Zones { get; } = new();
     public List<Shape> Graphics { get; } = new();
+    /// <summary>The stackup from the board's setup, top to bottom; empty when the file has none.</summary>
+    public List<StackLayer> Stackup { get; } = new();
 
     /// <summary>Copper layers from top to bottom: F.Cu, In1.Cu ..., B.Cu.</summary>
     public IReadOnlyList<string> CopperLayers =>

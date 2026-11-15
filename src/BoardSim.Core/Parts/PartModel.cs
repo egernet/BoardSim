@@ -39,6 +39,10 @@ public sealed class PinModel
     public bool? Decouple { get; set; }
     /// <summary>Why the pin has its rules; shown with the finding.</summary>
     public string? Why { get; set; }
+    /// <summary>Output edge time (10-90 %) in ns; overrides the part's value.</summary>
+    public double? RiseNs { get; set; }
+    /// <summary>Output resistance when driving, in ohms; overrides the part's value.</summary>
+    public double? DriveOhms { get; set; }
 }
 
 /// <summary>
@@ -86,6 +90,16 @@ public sealed class PartModel
     public double? CrystalHz { get; set; }
     /// <summary>How the part acts in the simulation; null for parts that only get checked.</summary>
     public BehaviorModel? Behavior { get; set; }
+    /// <summary>For connectors: how much the usual cable's shield reduces common-mode emission, in dB.</summary>
+    public double? CableShieldDb { get; set; }
+    /// <summary>Edge time (10-90 %) of the part's outputs in ns, from the datasheet.</summary>
+    public double? RiseNs { get; set; }
+    /// <summary>Output resistance of the part's outputs in ohms, from the datasheet.</summary>
+    public double? DriveOhms { get; set; }
+    /// <summary>Where the edge numbers come from (datasheet table, conditions).</summary>
+    public string? EdgeSource { get; set; }
+    /// <summary>"builtin:..." or "project:path", set when the model is loaded.</summary>
+    [JsonIgnore] public string? Source { get; set; }
 
     public bool Matches(Footprint fp)
     {
@@ -122,7 +136,8 @@ public sealed class PartLibrary
         foreach (var name in asm.GetManifestResourceNames().Where(n => n.EndsWith(".json")).OrderBy(n => n))
         {
             using var stream = asm.GetManifestResourceStream(name)!;
-            lib.Models.Add(Parse(stream, name));
+            var m = Parse(stream, name); m.Source = "builtin:" + name;
+            lib.Models.Add(m);
         }
         return lib;
     }
@@ -134,7 +149,8 @@ public sealed class PartLibrary
         foreach (var file in Directory.GetFiles(folder, "*.part.json"))
         {
             using var stream = File.OpenRead(file);
-            Models.Insert(0, Parse(stream, file));
+            var m = Parse(stream, file); m.Source = "project:" + file;
+            Models.Insert(0, m);
         }
     }
 

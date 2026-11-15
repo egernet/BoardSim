@@ -21,7 +21,24 @@ public sealed class Expectations
         public string? Why { get; set; }
     }
 
+    /// <summary>A signal the firmware puts on a pin, for the noise and emission estimates.</summary>
+    public sealed class SignalSpec
+    {
+        /// <summary>REF.PIN (U1.GPIO7) or a net name.</summary>
+        public string Pin { get; set; } = "";
+        public double Hz { get; set; }
+        /// <summary>Fraction of the period the signal is high (0.5 for a clock).</summary>
+        public double Duty { get; set; } = 0.5;
+        /// <summary>Overrides the edge time from the driver's part model.</summary>
+        public double? RiseNs { get; set; }
+        public string? Why { get; set; }
+    }
+
     public string? Description { get; set; }
+    /// <summary>Signals for the emission estimate (LED data, SPI clock...).</summary>
+    public List<SignalSpec> Signals { get; set; } = new();
+    /// <summary>Cable length in metres on a connector (J4: 5), for the common-mode estimate.</summary>
+    public Dictionary<string, double> Cables { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>Byte order of the LED strings on the connectors: "GRB" (WS2812 default), "RGB", "GRBW"...</summary>
     public string? LedOrder { get; set; }
     public List<Connection> Connections { get; set; } = new();

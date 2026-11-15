@@ -36,6 +36,8 @@ and 4.8 V on the connector.</i></p>
 | 💡 **Shows LED strings** | WS2812 data is decoded and followed through buffers and multiplexers to the connector it actually reaches. |
 | 📶 **Has Wi-Fi** | Add one component and the firmware's own Wi-Fi code connects in BoardSim, with real internet through your computer. |
 | 🥧 **Talks to a Raspberry Pi** | The pins are open on the network: `nc`, a Python library in the style of `RPi.GPIO`, or a bridge to a real Pi's pins. |
+| 📡 **Estimates noise and emission** | Which nets switch and how fast (edge times from the real part models), the plane under every millimetre of track, loop areas, reference changes, TVS distances, crosstalk - and a radiated-emission spectrum against the CISPR 32 class B limit. |
+| 🧩 **Uses your real parts** | Part models from a `boardsim-parts` folder, and every footprint's 3D model found the way KiCad finds it - also when an old board points at `${KICAD6_3DMODEL_DIR}` or a file in someone's Downloads. Press **3D** to see the board with them, and the realistic view shows KiCad's own render of each side (KiCad 8+; without it parts are drawn as outlines and boxes). |
 | 🕰️ **Lets you break things** | Click the crystal and give it another frequency: the UART turns to garbage, the LED timing falls apart - exactly as on hardware. |
 
 ## Quick start
@@ -215,6 +217,25 @@ Blue is 0 V, amber 3.3 V, red 5 V, purple in between, grey floating, flashing re
 </tr>
 </table>
 
+## Noise and emission
+
+The **EMC** tab (and `boardsim-cli emc board.kicad_pcb`) estimates how noisy the layout is:
+
+- **Signals**: USB, crystals and UART are found by themselves; firmware signals go in the board's
+  `.boardsim.json` (`"signals": [{ "pin": "U1.GPIO7", "hz": 800000, "why": "LED data" }]`), and
+  cable lengths per connector under `"cables"`. Each signal is followed through series resistors,
+  buffers (a new edge) and analog muxes (one output at a time).
+- **Edges** come from the driver's part model (`riseNs`, `driveOhms`, with the datasheet source);
+  parts without one are marked generic.
+- **Return paths** from the stackup in the board file and the filled zones: the plane under every
+  half millimetre of track, stretches with no plane, signals over a supply plane, and vias that
+  change the reference without a capacitor nearby.
+- **Emission**: differential mode from each loop and common mode from cables, at 3 m, against
+  CISPR 32 class B. **Crosstalk**: backward coupling between parallel tracks.
+
+These are engineering estimates, typically within 10-20 dB of a chamber measurement: good for
+comparing two layouts and finding the worst nets, not for certification.
+
 ## How it works
 
 ```
@@ -237,7 +258,7 @@ Blue is 0 V, amber 3.3 V, red 5 V, purple in between, grey floating, flashing re
 - **BoardSim.App** - the Avalonia desktop app (Windows, macOS, Linux).
 - Releases: tag `vX.Y.Z` and `.github/workflows/release.yml` packages every platform with the
   emulator from qemu-boardsim's release (`scripts/package.sh`).
-- **BoardSim.Cli** - `boardsim check | parts | pins | chip | gpio`.
+- **BoardSim.Cli** - `boardsim-cli check | parts | pins | chip | gpio | emc`.
 - **clients/python** - `boardsim_gpio.py` (RPi.GPIO style) and `pi_bridge.py` (real Pi pins).
 - **[qemu-boardsim](https://github.com/egernet/qemu-boardsim)** - Espressif's QEMU with ESP32-C3
   GPIO, RMT and SAR ADC emulation, a pin bridge to BoardSim and reset control.

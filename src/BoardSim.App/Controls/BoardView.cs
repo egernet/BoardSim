@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using BoardSim.App.Rendering;
 using BoardSim.Core.Analysis;
@@ -74,6 +75,21 @@ public sealed class BoardView : Control
     public Side Side { get; private set; } = Side.Front;
     public ViewMode Mode { get; private set; } = ViewMode.Realistic;
     public bool ShowParts { get; set; } = true;
+
+    /// <summary>KiCad's own renders of each side (with and without parts), drawn instead of the flat part bodies.</summary>
+    public sealed record KiCadRender(Bitmap Image, Rect2 Area, bool Mirrored);
+    private readonly Dictionary<(Side, bool), KiCadRender> _renders = new();
+
+    public void SetRender(Side side, bool withParts, KiCadRender? render)
+    {
+        if (render is null) _renders.Remove((side, withParts)); else _renders[(side, withParts)] = render;
+        InvalidateVisual();
+    }
+
+    public void ClearRenders() { _renders.Clear(); InvalidateVisual(); }
+
+    /// <summary>True when the realistic view shows KiCad's render for the current side.</summary>
+    public bool HasRender => _renders.ContainsKey((Side, ShowParts));
     public string? HighlightNet { get; private set; }
     public IReadOnlyCollection<string> HighlightRefs { get; private set; } = Array.Empty<string>();
     public Vec2? Marker { get; private set; }
@@ -343,7 +359,7 @@ public sealed class BoardView : Control
         ctx.DrawGeometry(HoleBrush, null, s.Holes);
 
         // Bodies on top again, then light from the LEDs.
-        if (ShowParts && Mode == ViewMode.Realistic)
+        if (ShowParts && Mode == ViewMode.Realistic && !HasRender)
             foreach (var body in s.Sides[Side].Bodies.Where(b => b.Kind != Core.Analysis.PartKind.Connector)) DrawBody(ctx, body);
         foreach (var body in s.Sides[Side].Bodies.Where(b => b.Kind == Core.Analysis.PartKind.Led))
         {
@@ -404,6 +420,23 @@ public sealed class BoardView : Control
     {
         var cu = Side == Side.Front ? "F.Cu" : "B.Cu";
         var sg = s.Sides[Side];
+
+        if (_renders.TryGetValue((Side, ShowParts), out var render))
+        {
+            if (s.Substrate is not null)
+                using (ctx.PushTransform(Matrix.CreateTranslation(0.6 * MirrorSign, 0.9)))
+                    ctx.DrawGeometry(new SolidColorBrush(Colors.Black, 0.45), null, s.Substrate);
+            var a = render.Area;
+            var dest = new Rect(a.MinX, a.MinY, a.Width, a.Height);
+            // A bottom render is seen from below; flip it back into board coordinates (the view mirrors it again).
+            var flip = render.Mirrored
+                ? Matrix.CreateTranslation(-dest.Center.X, 0) * Matrix.CreateScale(-1, 1) * Matrix.CreateTranslation(dest.Center.X, 0)
+                : Matrix.Identity;
+            using (ctx.PushRenderOptions(new RenderOptions { BitmapInterpolationMode = BitmapInterpolationMode.HighQuality }))
+            using (ctx.PushTransform(flip))
+                ctx.DrawImage(render.Image, new Rect(render.Image.Size), dest);
+            return;
+        }
 
         // Drop shadow and FR4 edge.
         if (s.Substrate is not null)

@@ -28,6 +28,27 @@ released for Windows, macOS and Linux, so UI text and messages are English.
     `GpioServer` (pins over TCP 4142, line protocol; every command ends with
     ok/err, watched pins push `change ...`). CHIP_EN/GPIO9 nets in the
     simulation reset the chip (`EmulatedBoard.EnableChanged`).
+  - `Emc/` - noise and emission estimates: `EmcStackup` (layer heights from the
+    board's stackup), `PlaneMap` (zone fills), `RouteAnalyzer` (reference plane per
+    0.5 mm of track, loop area, reference changes), `EmcAnalysis` (switching nets
+    from boardsim.json `signals`, USB, crystals, UART; followed through resistors,
+    buffers and muxes; trapezoid spectrum, DM/CM emission, crosstalk) and the
+    `emc-*` rules. Validated against julelys_pcb docs/noise-analysis-*.md.
+  - `Components/ComponentData` - per part: the part model and the 3D model file
+    (resolved like KiCad: KIPRJMOD, KICADn_3DMODEL_DIR, 3RD_PARTY, then by file
+    name in the project folder and KiCad's library), with its height from the STEP.
+    `Board3D` builds the 3D view: points every footprint at its resolved model,
+    runs `kicad-cli pcb export glb` (STEP -> triangles, cached in ~/.boardsim/3d
+    per board version) and reads the GLB (`Glb`, Z-up mm). Without KiCad: boxes
+    at the model heights. The app draws it with OpenGL (`Controls/Board3DView`);
+    `--screenshot` cannot capture OpenGL, use `--3d` and capture the window.
+    `BoardRender` draws the 2D realistic view the way KiCad does: `kicad-cli pcb
+    render` (orthographic, transparent, editor preset, uncoloured mask made green)
+    of each side with and without models, cached in ~/.boardsim/3d. The bare
+    render's alpha gives the board outline, which places both images on the
+    Edge.Cuts box (parts may overhang, so the render with parts cannot). Bottom
+    renders are mirrored. BoardView draws the image instead of its own copper,
+    silk and bodies; pads, highlight, probes and simulation stay on top.
 - `firmware/components/boardsim_wifi` - ESP-IDF component that wraps the
   esp_wifi API (`-Wl,--wrap`); in QEMU (SYSCON 0x600263F8 reads "QEMU") the
   station runs on openeth. Projects with MINIMAL_BUILD must REQUIRE it.
@@ -82,8 +103,19 @@ v4: it is a reviewed board, so a hit there is usually a false positive.
 2. Done: ESP32-C3 firmware runs in the QEMU fork (GPIO, RMT, SAR ADC added),
    drives the simulation and shows the LED strings. Wi-Fi cannot be emulated:
    firmware uses the boardsim_wifi component (or openeth directly). `idf.py -p rfc2217://localhost:4141 flash` works
-   against the emulated chip. Still open: shipping QEMU builds for Windows,
-   macOS and Linux.
+   against the emulated chip. QEMU ships for Windows, macOS and Linux (v0.5.0).
+3. Done (first version): noise and emission estimates (`Emc/`, EMC tab,
+   `boardsim-cli emc`). Still open: field simulation of chosen nets (openEMS
+   export with the 3D models), measured signals from the running firmware.
+
+## Gotchas (EMC)
+
+- Use the real parts: edge data (`riseNs`, `driveOhms`, `edgeSource`) belongs in
+  the part model with its datasheet source, project models in `boardsim-parts/`.
+  Generic values are a fallback and must show as generic.
+- EMC findings are Info unless clearly bad: Julelys v4 must stay free of warnings.
+- Crosstalk on a small board is tiny (saturation length is v x tr / 2, about
+  22 cm at 3 ns); that is correct, not a bug.
 
 ## Gotchas (emulation)
 

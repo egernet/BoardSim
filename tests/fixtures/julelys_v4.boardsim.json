@@ -3,6 +3,12 @@
   "description": "Julelys firmware pins: main.cpp and components/led_controller/led_controller.cpp",
   // The 2026 fairy strings take their bytes in RGB order (CONFIG_JULELYS_LED_COLOR_ORDER_RGB).
   "ledOrder": "RGB",
+  // Signals for the noise and emission estimates (boardsim emc).
+  "signals": [
+    { "pin": "U1.GPIO7", "hz": 800000, "duty": 0.5, "why": "LED data from the RMT (WS2812, 800 kbit/s)" }
+  ],
+  // Cable from each LED output to the first LED of its string, in metres.
+  "cables": { "J4": 2, "J5": 2, "J6": 2, "J7": 2, "J8": 2, "J9": 2, "J10": 2, "J11": 2 },
   "connections": [
     { "from": "U1.GPIO7", "to": "U2.Z",  "why": "LED data from the RMT, through level shifter U6" },
     { "from": "U1.GPIO4", "to": "U2.S0", "why": "mux select bit 0 (changeChannel)" },

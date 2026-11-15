@@ -12,6 +12,7 @@
     <AssemblyName>BoardSim</AssemblyName>
     <ApplicationIcon>../../assets/BoardSim.ico</ApplicationIcon>
     <RootNamespace>BoardSim.App</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

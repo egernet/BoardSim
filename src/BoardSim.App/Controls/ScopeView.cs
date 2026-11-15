@@ -279,18 +279,26 @@ public sealed class ScopeView : Control
                 return best is { } t ? t / 1e9 - window * 0.1 : e.NowNs / 1e9 - window;
             }
             case RmtTrace r:
-                return RmtStart(r) / 1e9 - window * 0.1;
+                return RmtWindowStart(r, windowNs) / 1e9 - window * 0.1;
         }
         var now = traces.OfType<EdgeTrace>().Select(e => e.NowNs).DefaultIfEmpty(0).Max();
         var rmt = traces.OfType<RmtTrace>().FirstOrDefault();
-        if (rmt is not null && (now == 0 || TriggerChannel == 0)) return RmtStart(rmt) / 1e9 - window * 0.1;
+        if (rmt is not null && (now == 0 || TriggerChannel == 0)) return RmtWindowStart(rmt, windowNs) / 1e9 - window * 0.1;
         return now / 1e9 - window;
     }
 
-    private static double RmtStart(RmtTrace r)
+    /// <summary>The start of the newest frame that still leaves a full screen of chip time after it (like a scope's last full sweep).</summary>
+    private static double RmtWindowStart(RmtTrace r, double windowNs)
     {
-        var total = r.Frame.Items.Sum(i => (double)((i & 0x7fff) + ((i >> 16) & 0x7fff))) * r.Frame.TickNs;
-        return (r.Frame.EndNs ?? (long)total) - total;
+        var now = r.NowNs > 0 ? r.NowNs : r.Frames[^1].EndNs ?? 0;
+        double? best = null;
+        for (var i = r.Frames.Count - 1; i >= 0; i--)
+        {
+            var start = r.Frames[i].StartNs;
+            best ??= start;
+            if (start + windowNs * 0.9 <= now) { best = start; break; }
+        }
+        return best ?? r.Frame.StartNs;
     }
 
     private List<(double T, double V)> RunPoints(Probe p, ScopeTrace? trace, double start, double window, double widthPx)
@@ -322,28 +330,39 @@ public sealed class ScopeView : Control
             }
             case RmtTrace r:
             {
-                var t = RmtStart(r) / 1e9 - start;
-                var frameEnd = t + r.Frame.Items.Sum(i => (double)((i & 0x7fff) + ((i >> 16) & 0x7fff))) * r.Frame.TickNs * 1e-9;
-                if (t > window || frameEnd < 0)
+                var startNs = start * 1e9;
+                var endNs = startNs + window * 1e9;
+                // At wide timebases a bit is far less than a pixel: draw each frame as a solid band.
+                var dense = 1.25e-6 / window * widthPx < 1.5;
+                pts.Add((0, r.Low));
+                foreach (var f in r.Frames)
                 {
-                    // The last frame is outside the screen: the line idles low.
-                    pts.Add((0, r.Low)); pts.Add((window, r.Low));
-                    return pts;
-                }
-                if (t > 0) pts.Add((0, r.Low));
-                pts.Add((Math.Max(0, t), r.Low));
-                foreach (var item in r.Frame.Items)
-                {
-                    if (t > window) break;
-                    var (hi, lo) = Measurement.ItemHighLow(item);
-                    var th = hi * r.Frame.TickNs * 1e-9;
-                    var tl = lo * r.Frame.TickNs * 1e-9;
-                    if (t + th + tl >= 0)
+                    if (f.StartNs + f.DurationNs < startNs || f.StartNs > endNs) continue;
+                    var t = (f.StartNs - startNs) / 1e9;
+                    if (dense)
                     {
-                        pts.Add((Math.Max(0, t), r.Low)); pts.Add((Math.Max(0, t), r.High));
-                        pts.Add((Math.Max(0, t + th), r.High)); pts.Add((Math.Max(0, t + th), r.Low));
+                        var t1 = Math.Min(window, t + f.DurationNs * 1e-9);
+                        var px = window / widthPx;
+                        var x = Math.Max(0, t);
+                        pts.Add((x, r.Low));
+                        var hi = true;
+                        do { pts.Add((x, hi ? r.High : r.Low)); x += px; pts.Add((Math.Min(x, t1), hi ? r.High : r.Low)); hi = !hi; } while (x < t1);
+                        pts.Add((t1, r.Low));
+                        continue;
                     }
-                    t += th + tl;
+                    foreach (var item in f.Items)
+                    {
+                        if (t > window) break;
+                        var (hiTicks, loTicks) = Measurement.ItemHighLow(item);
+                        var th = hiTicks * f.TickNs * 1e-9;
+                        var tl = loTicks * f.TickNs * 1e-9;
+                        if (t + th + tl >= 0)
+                        {
+                            pts.Add((Math.Max(0, t), r.Low)); pts.Add((Math.Max(0, t), r.High));
+                            pts.Add((Math.Max(0, t + th), r.High)); pts.Add((Math.Max(0, t + th), r.Low));
+                        }
+                        t += th + tl;
+                    }
                 }
                 pts.Add((window, r.Low));
                 return pts;
@@ -386,18 +405,22 @@ public sealed class ScopeView : Control
         {
             if (traces[lane] is not RmtTrace r) continue;
             if (1.25e-6 / window * screen.Width < 14) return;
-            var t = RmtStart(r) / 1e9 - start;
-            foreach (var item in r.Frame.Items)
+            foreach (var f in r.Frames)
             {
-                var (hi, lo) = Measurement.ItemHighLow(item);
-                var dur = (hi + lo) * r.Frame.TickNs * 1e-9;
-                if (t > window) break;
-                if (t >= 0 && lo * r.Frame.TickNs < 5000)
+                var t = (f.StartNs / 1e9) - start;
+                if (t > window || t + f.DurationNs * 1e-9 < 0) continue;
+                foreach (var item in f.Items)
                 {
-                    var bt = Text(hi * r.Frame.TickNs > 600 ? "1" : "0", 10, "#c6ccd6", Mono);
-                    ctx.DrawText(bt, new Point(screen.X + (t + dur / 2) / window * screen.Width - bt.Width / 2, screen.Y + lane * laneH + 2));
+                    var (hi, lo) = Measurement.ItemHighLow(item);
+                    var dur = (hi + lo) * f.TickNs * 1e-9;
+                    if (t > window) break;
+                    if (t >= 0 && lo * f.TickNs < 5000)
+                    {
+                        var bt = Text(hi * f.TickNs > 600 ? "1" : "0", 10, "#c6ccd6", Mono);
+                        ctx.DrawText(bt, new Point(screen.X + (t + dur / 2) / window * screen.Width - bt.Width / 2, screen.Y + lane * laneH + 2));
+                    }
+                    t += dur;
                 }
-                t += dur;
             }
             return;
         }

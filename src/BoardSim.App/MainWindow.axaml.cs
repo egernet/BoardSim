@@ -12,6 +12,9 @@ using Avalonia.Threading;
 using BoardSim.App.Controls;
 using BoardSim.App.Rendering;
 using BoardSim.Core.Analysis;
+using BoardSim.Core.Components;
+using Board3DMesh = BoardSim.Core.Components.Board3D;
+using BoardSim.Core.Emc;
 using BoardSim.Core.Model;
 using BoardSim.Core.Simulation;
 using BoardSim.Core.Emulation;
@@ -56,6 +59,7 @@ public partial class MainWindow : Window
         BottomButton.Click += (_, _) => SetSide(Side.Back);
         RealButton.Click += (_, _) => SetMode(ViewMode.Realistic);
         LayersButton.Click += (_, _) => SetMode(ViewMode.Layers);
+        View3DButton.Click += (_, _) => _ = Set3D(View3DButton.IsChecked == true);
         SimButton.Click += (_, _) => SetSimulating(SimButton.IsChecked == true);
         FirmwareButton.Click += (_, _) =>
         {
@@ -139,6 +143,13 @@ public partial class MainWindow : Window
         PartsButton.Click += (_, _) => { Board.ShowParts = PartsButton.IsChecked == true; Board.InvalidateVisual(); };
 
         FindingsList.SelectionChanged += (_, _) => SelectFinding(FindingsList.SelectedItem as FindingItem);
+        EmcList.SelectionChanged += (_, _) =>
+        {
+            if (EmcList.SelectedItem is not EmcNetItem item) return;
+            Spectrum.Selected = item.Net;
+            Spectrum.InvalidateVisual();
+            Board.Highlight(new[] { item.Net.Net.Name }, Array.Empty<string>(), item.Net.Route.Tracks.FirstOrDefault()?.Start);
+        };
         PartsList.SelectionChanged += (_, _) =>
         {
             if (PartsList.SelectedItem is PartItem p && _report?.Board.Find(p.Reference) is { } fp)
@@ -173,6 +184,14 @@ public partial class MainWindow : Window
             foreach (var spec in _options.Probes)
                 if (_sim is not null && ExpectationRule.Resolve(_sim.Circuit, spec) is { } probePin) ToggleProbe(probePin.Net, probePin.Pad);
             if (_options.ScopeLed) { SetScopeMode(ScopeMode.Run); _ = AutoSoon(); }
+            if (_options.View3D) _ = Set3D(true);
+            if (_options.Tab is { } tabName)
+                Tabs.SelectedItem = Tabs.Items.OfType<TabItem>().FirstOrDefault(t => string.Equals(t.Header as string, tabName, StringComparison.OrdinalIgnoreCase));
+            if (_options.EmcNet is { } emcNet)
+                _ = Task.Delay(2500).ContinueWith(_ => Dispatcher.UIThread.Post(() =>
+                    EmcList.SelectedItem = EmcList.ItemsSource?.OfType<EmcNetItem>().FirstOrDefault(i => i.Net.Net.DisplayName == emcNet)));
+            if (_options.PerDiv is { } perDiv)
+                _ = Task.Delay(Math.Max(1000, _options.Wait - 2500)).ContinueWith(_ => Dispatcher.UIThread.Post(() => { Scope.SetPerDiv(perDiv); UpdateScope(); }));
             if (_options.Trigger is { } trig)
             {
                 // e.g. "single:3:falling" - mode, channel, edge
@@ -212,9 +231,39 @@ public partial class MainWindow : Window
 
     private void SetMode(ViewMode mode)
     {
+        _ = Set3D(false);
         RealButton.IsChecked = mode == ViewMode.Realistic;
         LayersButton.IsChecked = mode == ViewMode.Layers;
         Board.SetMode(mode);
+    }
+
+    private IReadOnlyList<ComponentInfo>? _components;
+    private BoardReport? _meshFor;
+
+    /// <summary>Shows the board in 3D with the real models; the first time per board version KiCad builds the mesh.</summary>
+    private async Task Set3D(bool on)
+    {
+        View3DButton.IsChecked = on;
+        Board3D.IsVisible = on;
+        Board.IsVisible = !on;
+        Board3DStatusBox.IsVisible = on;
+        if (!on) return;
+        RealButton.IsChecked = LayersButton.IsChecked = false;
+        if (_report is not { } r || _meshFor == r) return;
+        _meshFor = r;
+        Board3DStatus.Text = "Finding the 3D models…";
+        var components = _components ?? await Task.Run(() => ComponentData.For(r.Circuit));
+        var models = components.Count(c => c.Model3D is { Source: not DataSource.Missing });
+        Board3DStatus.Text = Board3DMesh.FindKiCadCli() is null ? "KiCad not found: drawing boxes" : $"Building the 3D model with KiCad ({models} part models)… the first time takes up to a minute";
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var mesh = await Task.Run(() => Board3DMesh.BuildAsync(r.Circuit, components));
+        if (_report != r) return;
+        Board3D.Mesh = mesh;
+        var missing = components.Count(c => c.Model3D is { Source: DataSource.Missing });
+        Board3DStatus.Text = $"{mesh.Source} · {mesh.Triangles:N0} triangles · {models} models" +
+                             (missing > 0 ? $", {missing} missing (see Parts)" : "") +
+                             (Board3D.Error is { } err ? $" · OpenGL: {err}" : "") +
+                             " · drag to turn, scroll to zoom, shift-drag to move";
     }
 
     private async Task PickBoard()
@@ -240,6 +289,7 @@ public partial class MainWindow : Window
         {
             Status.Text = $"Loading {Path.GetFileName(path)}…";
             _report = Checker.Run(path);
+            _components = null;
         }
         catch (Exception ex)
         {
@@ -269,7 +319,9 @@ public partial class MainWindow : Window
                               (r.Expectations is null ? "." : $", and all {r.Expectations.Connections.Count} expected connections exist.");
         PartsList.ItemsSource = r.Circuit.Parts
             .OrderBy(p => p.Footprint.Prefix).ThenBy(p => p.Reference.Length).ThenBy(p => p.Reference)
-            .Select(p => new PartItem(p)).ToList();
+            .Select(p => new PartItem(p, null)).ToList();
+        _ = LoadComponentData(r);
+        if (View3DButton.IsChecked == true) _ = Set3D(true);
         Status.Text = StatusLine();
         Tabs.SelectedIndex = 0;
 
@@ -277,6 +329,57 @@ public partial class MainWindow : Window
         _sim.Run();
         StartGpioServer();
         if (SimButton.IsChecked == true) { Board.Simulation = _sim; BuildSimPanel(); }
+    }
+
+    /// <summary>3D models and the EMC estimate take a moment: work them out in the background, then fill the Parts and EMC tabs.</summary>
+    private async Task LoadComponentData(BoardReport r)
+    {
+        EmcSummary.Text = "Estimating noise and emission…";
+        var (components, emc) = await Task.Run(() => (ComponentData.For(r.Circuit), EmcAnalysis.For(r.Circuit, r.Expectations)));
+        if (_report != r) return;
+        _components = components;
+        _ = LoadBoardRenders(r, components);
+        var byPart = components.ToDictionary(c => c.Part);
+        PartsList.ItemsSource = r.Circuit.Parts
+            .OrderBy(p => p.Footprint.Prefix).ThenBy(p => p.Reference.Length).ThenBy(p => p.Reference)
+            .Select(p => new PartItem(p, byPart.GetValueOrDefault(p))).ToList();
+
+        Spectrum.Analysis = emc;
+        Spectrum.Selected = null;
+        Spectrum.InvalidateVisual();
+        var st = emc.Routes.Stackup;
+        var found = components.Count(c => c.Model3D is { Source: not DataSource.Missing });
+        var missing = components.Count(c => c.Model3D is { Source: DataSource.Missing });
+        var generic = components.Count(c => c.IsGeneric && c.Part.Kind is PartKind.Ic or PartKind.Regulator);
+        EmcSummary.Text =
+            $"{emc.Active.Count} switching nets. Stackup {(st.FromFile ? "from the board" : "assumed")}: " +
+            string.Join(" · ", st.Copper.Select(l => $"{l} {st.Z(l):0.##} mm")) + ". " +
+            $"Edge data from the part models; {(generic == 0 ? "every IC has one" : $"{generic} IC{(generic == 1 ? "" : "s")} use generic values")}. " +
+            $"3D models: {found} found{(missing > 0 ? $", {missing} missing" : "")}. " +
+            "Estimates, typically within 10-20 dB of a chamber measurement: use them to compare layouts and find the worst nets.";
+        EmcList.ItemsSource = emc.Active.Select(a => new EmcNetItem(emc, a)).OrderBy(i => i.Margin).ToList();
+    }
+
+    /// <summary>KiCad's own top and bottom renders (real part models), shown in the realistic view once they are ready.</summary>
+    private async Task LoadBoardRenders(BoardReport r, IReadOnlyList<ComponentInfo> components)
+    {
+        Board.ClearRenders();
+        if (Board3DMesh.FindKiCadCli() is null) return;
+        foreach (var side in new[] { Side.Front, Side.Back })
+        {
+            try
+            {
+                var renders = await Task.Run(() => BoardRenders.RenderAsync(r.Board, components, side));
+                if (_report != r || renders is not { } rr) return;
+                foreach (var x in new[] { rr.WithParts, rr.Bare })
+                    Board.SetRender(side, x.WithParts, new BoardView.KiCadRender(new Avalonia.Media.Imaging.Bitmap(x.Image), x.Area, x.Mirrored));
+            }
+            catch (Exception e)
+            {
+                Status.Text = $"KiCad render failed: {e.Message}";
+                return;
+            }
+        }
     }
 
     private void StartGpioServer()
@@ -962,12 +1065,58 @@ public sealed class FindingItem(Finding finding) : INotifyPropertyChanged
     }));
 }
 
-public sealed class PartItem(Part part)
+public sealed class PartItem(Part part, ComponentInfo? info)
 {
     public string Reference => part.Reference;
     public string Value => part.Footprint.Value;
-    public string Kind => part.Kind.ToString();
-    public string ModelLabel => part.Model?.Id ?? "generic";
+    public string Kind => part.Kind.ToString() + (info?.Mpn is { } mpn ? $" · {mpn}" : "");
+    public string ModelLabel => part.Model?.Id is { } id ? (part.Model.Source?.StartsWith("project:") == true ? id + " (project)" : id) : "generic";
     public IBrush ModelBackground => new SolidColorBrush(Color.Parse(part.Model is null ? "#222833" : "#12384a"));
     public IBrush ModelForeground => new SolidColorBrush(Color.Parse(part.Model is null ? "#8b93a1" : "#7fe0ff"));
+
+    public string Model3DLabel => info?.Model3D switch
+    {
+        null => info is null ? "3D …" : "no 3D model",
+        { Source: DataSource.Missing } => "3D missing",
+        { } m => $"3D {m.Source switch { DataSource.Project => "project", DataSource.KiCadLibrary => "KiCad", _ => "library" }}" +
+                 (m.HeightMm is { } h ? $" · {h:0.#} mm" : ""),
+    };
+    public string Model3DFile => info?.Model3D?.File ?? info?.Model3D?.Model.Path ?? "";
+    public IBrush Model3DBackground => new SolidColorBrush(Color.Parse(info?.Model3D?.Source switch
+    {
+        DataSource.Project => "#14331f", DataSource.KiCadLibrary or DataSource.ThirdParty => "#1b2733", DataSource.Missing => "#3a1c1c", _ => "#222833",
+    }));
+    public IBrush Model3DForeground => new SolidColorBrush(Color.Parse(info?.Model3D?.Source switch
+    {
+        DataSource.Project => "#7ee2a0", DataSource.KiCadLibrary or DataSource.ThirdParty => "#9fb4c8", DataSource.Missing => "#ff8a8a", _ => "#8b93a1",
+    }));
+}
+
+/// <summary>One switching net in the EMC tab: its signal, route and emission margin.</summary>
+public sealed class EmcNetItem
+{
+    public ActiveNet Net { get; }
+    public double Margin { get; }
+    public string Title { get; }
+    public string Detail { get; }
+    public string Data { get; }
+
+    public EmcNetItem(EmcAnalysis emc, ActiveNet a)
+    {
+        Net = a;
+        var peak = emc.Peak(a);
+        Margin = peak.Margin;
+        var hz = a.Signal.Hz >= 1e6 ? $"{a.Signal.Hz / 1e6:0.##} MHz" : $"{a.Signal.Hz / 1e3:0.#} kHz";
+        Title = $"{a.Net.DisplayName} · {a.Signal.Name}";
+        var r = a.Route;
+        Detail = $"{hz}, {(a.Signal.Sine ? "sine" : $"{a.EdgeNs:0.#} ns edges")}, {a.CurrentA * 1000:0} mA · {r.Length:0} mm, {r.Vias} vias, loop {r.LoopArea:0.#} mm²" +
+                 (r.Unreferenced > 0.5 ? $", {r.Unreferenced:0} mm without plane" : "") +
+                 (a.LeavesBoard ? $" · cable on {string.Join(", ", a.Exits.Select(e => e.Part.Reference).Distinct())}" : "") +
+                 (double.IsNegativeInfinity(peak.Level) ? "" : $" · peak {peak.Level:0} dBµV/m at {peak.Hz / 1e6:0} MHz");
+        Data = "Edge data: " + a.Signal.Data;
+    }
+
+    public string MarginLabel => double.IsPositiveInfinity(Margin) || Margin > 60 ? "quiet" : Margin < 0 ? $"{-Margin:0} dB over" : $"{Margin:0} dB margin";
+    public IBrush MarginBackground => new SolidColorBrush(Color.Parse(Margin < 0 ? "#3a1c1c" : Margin < 6 ? "#3a2f12" : "#14331f"));
+    public IBrush MarginForeground => new SolidColorBrush(Color.Parse(Margin < 0 ? "#ff8a8a" : Margin < 6 ? "#ffd166" : "#7ee2a0"));
 }

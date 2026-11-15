@@ -137,5 +137,8 @@
       "name": "GND",
       "type": "ground"
     }
-  }
+  },
+  "riseNs": 3,
+  "driveOhms": 25,
+  "edgeSource": "ESP32-C3 datasheet: GPIO drive strength 20 mA by default (FUN_DRV=2); about 25 ohm and 3 ns into 15 pF (estimate from the drive current)"
 }

@@ -1,3 +1,4 @@
+using BoardSim.Core.Emc;
 using BoardSim.Core.KiCad;
 using BoardSim.Core.Model;
 using BoardSim.Core.Parts;
@@ -35,6 +36,11 @@ public static class Checker
         new DecouplingRule(),
         new SinglePinNetRule(),
         new ConnectorProtectionRule(),
+        new ReturnPathRule(),
+        new DiffPairRule(),
+        new EsdDistanceRule(),
+        new EmissionRule(),
+        new CrosstalkRule(),
     };
 
     /// <summary>Loads a board, its part models and expectations, and runs every rule.</summary>

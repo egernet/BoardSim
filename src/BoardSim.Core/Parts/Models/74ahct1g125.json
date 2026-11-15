@@ -53,5 +53,8 @@
         5.5
       ]
     }
-  }
+  },
+  "riseNs": 2.5,
+  "driveOhms": 40,
+  "edgeSource": "74AHCT1G125 datasheet: tpd 3.8 ns typ at 5 V / 15 pF, IOH -8 mA at VOH 3.94 V; edge and output resistance estimated from those"
 }

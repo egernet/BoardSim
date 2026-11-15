@@ -121,8 +121,15 @@ public sealed class EmulatedBoard
     {
         lock (_lock)
         {
-            if (LastRmt is { } rmt && rmt.Nets.TryGetValue(net, out var levels) && (DateTime.Now - rmt.Time).TotalSeconds < 3)
-                return new RmtTrace(rmt, levels.High, levels.Low) { Source = $"{rmt.Source.Label} (RMT)" };
+            var frames = _rmtHistory.Where(f => f.Nets.ContainsKey(net)).ToList();
+            if (frames.Count > 0 && frames[^1] is var rmt && (DateTime.Now - rmt.Time).TotalSeconds < 3)
+            {
+                var levels = rmt.Nets[net];
+                return new RmtTrace(rmt, levels.High, levels.Low)
+                {
+                    Source = $"{rmt.Source.Label} (RMT)", Frames = frames, NowNs = ChipTimeNs,
+                };
+            }
 
             foreach (var (n, pin) in _gpio)
             {
@@ -208,6 +215,11 @@ public sealed class EmulatedBoard
         var follow = Follow(source);
         if (rmt.TimeNs is { } end) ChipTimeNs = Math.Max(ChipTimeNs, end);
         LastRmt = new RmtCapture(source, rmt.Items, tickNs, DateTime.Now, follow.Nets, rmt.TimeNs);
+        _rmtHistory.Add(LastRmt);
+        // Keep about two seconds of chip time (enough for the slowest timebase), and never more than 1000 frames.
+        while (_rmtHistory.Count > 1000 ||
+               (_rmtHistory.Count > 1 && LastRmt.EndNs is { } newest && _rmtHistory[0].EndNs is { } oldest && newest - oldest > 2_200_000_000))
+            _rmtHistory.RemoveAt(0);
         foreach (var target in follow.Connectors)
         {
             if (!Strings.TryGetValue(target, out var s)) Strings[target] = s = new LedString { Pin = target };
@@ -259,7 +271,14 @@ public sealed class EmulatedBoard
 
     /// <summary>The last RMT transmission, as the oscilloscope shows it.</summary>
     public sealed record RmtCapture(PinRef Source, uint[] Items, double TickNs, DateTime Time,
-        IReadOnlyDictionary<Net, (double High, double Low)> Nets, long? EndNs = null);
+        IReadOnlyDictionary<Net, (double High, double Low)> Nets, long? EndNs = null)
+    {
+        /// <summary>How long the transmission lasts, in ns.</summary>
+        public double DurationNs { get; } = Items.Sum(i => (double)((i & 0x7fff) + ((i >> 16) & 0x7fff))) * TickNs;
+        /// <summary>Chip time the transmission started, in ns.</summary>
+        public long StartNs => (EndNs ?? (long)DurationNs) - (long)DurationNs;
+    }
 
     public RmtCapture? LastRmt { get; private set; }
+    private readonly List<RmtCapture> _rmtHistory = new();
 }

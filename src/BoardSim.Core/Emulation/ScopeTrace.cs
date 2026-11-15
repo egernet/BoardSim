@@ -15,8 +15,17 @@ public sealed record DcTrace(double? Volts) : ScopeTrace;
 /// <summary>A digital signal from a GPIO output: its edges, at the voltages this net sees.</summary>
 public sealed record EdgeTrace(IReadOnlyList<(long T, bool High)> Edges, double High, double Low, long NowNs) : ScopeTrace;
 
-/// <summary>The last RMT transmission (LED data) on this net.</summary>
-public sealed record RmtTrace(EmulatedBoard.RmtCapture Frame, double High, double Low) : ScopeTrace;
+/// <summary>
+/// RMT transmissions (LED data) on this net: <see cref="Frame"/> is the latest,
+/// <see cref="Frames"/> the recent ones in chip-time order (a mux sends each
+/// string its own frames, so every channel has gaps where the others were served).
+/// </summary>
+public sealed record RmtTrace(EmulatedBoard.RmtCapture Frame, double High, double Low) : ScopeTrace
+{
+    public IReadOnlyList<EmulatedBoard.RmtCapture> Frames { get; init; } = new[] { Frame };
+    /// <summary>The chip's time now, in ns (0 when unknown).</summary>
+    public long NowNs { get; init; }
+}
 
 /// <summary>A sine wave, e.g. a crystal oscillating.</summary>
 public sealed record SineTrace(double Hz, double Min, double Max) : ScopeTrace;
@@ -115,9 +124,11 @@ public static class Trigger
                     if (e.Edges[i].T > afterNs && Matches(edge, e.Edges[i - 1].High, e.Edges[i].High))
                         return e.Edges[i].T;
                 return null;
-            case RmtTrace r when r.Frame.EndNs is { } end && end > afterNs:
+            case RmtTrace r:
                 // A new LED frame: it starts with a rising edge, so any edge setting triggers on it.
-                return end - (long)FrameNs(r);
+                foreach (var f in r.Frames)
+                    if (f.EndNs is { } end && end > afterNs) return f.StartNs;
+                return null;
             case SineTrace:
                 return afterNs + 1;   // free-running oscillator: every moment is an edge
             default:
@@ -129,6 +140,7 @@ public static class Trigger
     public static bool WindowFilled(ScopeTrace? trace, long eventNs, double windowNs) => trace switch
     {
         EdgeTrace e => e.NowNs >= eventNs + windowNs * 0.9,
+        RmtTrace r when r.NowNs > 0 => r.NowNs >= eventNs + windowNs * 0.9,
         _ => true,
     };
 
@@ -145,7 +157,4 @@ public static class Trigger
         }
         return null;
     }
-
-    private static double FrameNs(RmtTrace r) =>
-        r.Frame.Items.Sum(i => (double)((i & 0x7fff) + ((i >> 16) & 0x7fff))) * r.Frame.TickNs;
 }

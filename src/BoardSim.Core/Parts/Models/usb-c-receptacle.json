@@ -77,5 +77,6 @@
     "S1": {
       "name": "SHIELD"
     }
-  }
+  },
+  "cableShieldDb": 20
 }

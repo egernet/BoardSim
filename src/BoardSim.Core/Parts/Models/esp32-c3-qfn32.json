@@ -181,13 +181,19 @@
       "name": "GPIO18",
       "type": "io",
       "maxVolts": 3.6,
-      "vih": "0.75*VDD"
+      "vih": "0.75*VDD",
+      "riseNs": 4,
+      "driveOhms": 36,
+      "why": "Native USB full speed: USB 2.0 allows 4-20 ns edges and a 28-44 ohm driver."
     },
     "26": {
       "name": "GPIO19",
       "type": "io",
       "maxVolts": 3.6,
-      "vih": "0.75*VDD"
+      "vih": "0.75*VDD",
+      "riseNs": 4,
+      "driveOhms": 36,
+      "why": "Native USB full speed: USB 2.0 allows 4-20 ns edges and a 28-44 ohm driver."
     },
     "27": {
       "name": "GPIO20",
@@ -231,5 +237,8 @@
       "name": "GND",
       "type": "ground"
     }
-  }
+  },
+  "riseNs": 3,
+  "driveOhms": 25,
+  "edgeSource": "ESP32-C3 datasheet: GPIO drive strength 20 mA by default (FUN_DRV=2); about 25 ohm and 3 ns into 15 pF (estimate from the drive current)"
 }

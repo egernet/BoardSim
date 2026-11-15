@@ -27,7 +27,7 @@ public partial class App : Application
 /// [--net NAME] [--simulate] [--drive U1.GPIO7=H ...] [--firmware build-folder] [--power] [--wait ms] [--probe U1.GPIO7 ...] [--scope led] [--crystal Y1=26]
 /// </summary>
 public sealed record StartupOptions(string? BoardPath, string? Screenshot, int? SelectFinding, bool Back, bool Layers, string? Net,
-    bool Simulate, IReadOnlyList<(string Pin, BoardSim.Core.Simulation.PinDrive Drive)> Drives, string? Firmware, int Wait, bool Power, IReadOnlyList<string> Probes, bool ScopeLed, string? Crystal, string? Trigger)
+    bool Simulate, IReadOnlyList<(string Pin, BoardSim.Core.Simulation.PinDrive Drive)> Drives, string? Firmware, int Wait, bool Power, IReadOnlyList<string> Probes, bool ScopeLed, string? Crystal, string? Trigger, double? PerDiv = null, string? Tab = null, string? EmcNet = null, bool View3D = false)
 {
     public static StartupOptions Parse(string[] args)
     {
@@ -39,6 +39,9 @@ public sealed record StartupOptions(string? BoardPath, string? Screenshot, int? 
         var probes = new List<string>();
         var scopeLed = false;
         string? crystal = null, trigger = null;
+        double? perDiv = null;
+        string? tab = null, emcNet = null;
+        var view3d = false;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -48,6 +51,7 @@ public sealed record StartupOptions(string? BoardPath, string? Screenshot, int? 
                 case "--net" when i + 1 < args.Length: net = args[++i]; break;
                 case "--side" when i + 1 < args.Length: back = args[++i] == "back"; break;
                 case "--layers": layers = true; break;
+                case "--3d": view3d = true; break;
                 case "--simulate": simulate = true; break;
                 case "--firmware" when i + 1 < args.Length: firmware = args[++i]; simulate = true; break;
                 case "--wait" when i + 1 < args.Length: wait = int.Parse(args[++i]); break;
@@ -56,6 +60,10 @@ public sealed record StartupOptions(string? BoardPath, string? Screenshot, int? 
                 case "--scope" when i + 1 < args.Length: scopeLed = args[++i] == "led"; break;
                 case "--crystal" when i + 1 < args.Length: crystal = args[++i]; break;
                 case "--trigger" when i + 1 < args.Length: trigger = args[++i]; break;
+                case "--tab" when i + 1 < args.Length: tab = args[++i]; break;
+                case "--emc-net" when i + 1 < args.Length: emcNet = args[++i]; tab ??= "EMC"; break;
+                case "--perdiv" when i + 1 < args.Length:
+                    perDiv = double.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                 case "--drive" when i + 1 < args.Length:
                     var kv = args[++i].Split('=');
                     drives.Add((kv[0], kv[1].ToUpperInvariant() switch
@@ -69,6 +77,6 @@ public sealed record StartupOptions(string? BoardPath, string? Screenshot, int? 
                 default: if (!args[i].StartsWith("--")) board = args[i]; break;
             }
         }
-        return new StartupOptions(board, shot, select, back, layers, net, simulate, drives, firmware, wait, power, probes, scopeLed, crystal, trigger);
+        return new StartupOptions(board, shot, select, back, layers, net, simulate, drives, firmware, wait, power, probes, scopeLed, crystal, trigger, perDiv, tab, emcNet, view3d);
     }
 }

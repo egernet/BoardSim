@@ -35,6 +35,14 @@ public static class KiCadPcbLoader
             });
         }
 
+        foreach (var l in root.Child("setup")?.Child("stackup")?.Children("layer") ?? Enumerable.Empty<SExpr>())
+        {
+            var type = l.Child("type")?.Arg(1) ?? "";
+            if (type is "Top Silk Screen" or "Bottom Silk Screen" or "Top Solder Paste" or "Bottom Solder Paste") continue;
+            board.Stackup.Add(new StackLayer(l.Arg(1) ?? "", type, l.Child("thickness")?.Num(1) ?? 0,
+                l.Child("epsilon_r")?.Num(1, 4.5) ?? 4.5));
+        }
+
         // KiCad 6/7 number the nets and refer to them by number on tracks and vias.
         var netNames = new Dictionary<string, string>();
         foreach (var n in root.Children("net"))
@@ -164,6 +172,12 @@ public static class KiCadPcbLoader
                 fp.Graphics.Add(s);
             else if ((item.Name == "fp_text" || item.Name == "property") && ReadFootprintText(item, ToBoard) is { } t)
                 fp.Graphics.Add(t);
+            else if (item.Name == "model" && item.Arg(1) is { Length: > 0 } modelPath)
+            {
+                static double[] V(SExpr? n, double d) => n?.Child("xyz") is { } x ? new[] { x.Num(1, d), x.Num(2, d), x.Num(3, d) } : new[] { d, d, d };
+                fp.Models.Add(new Model3D(modelPath, V(item.Child("offset"), 0), V(item.Child("scale"), 1), V(item.Child("rotate"), 0),
+                    item.Child("hide") is not null || item.Atoms().Contains("hide")));
+            }
         }
         return fp;
     }
