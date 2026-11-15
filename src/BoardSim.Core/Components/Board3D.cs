@@ -126,7 +126,8 @@ public static class Board3D
             var err = p.StandardError.ReadToEndAsync(ct);
             await p.StandardOutput.ReadToEndAsync(ct);
             await p.WaitForExitAsync(ct);
-            if (p.ExitCode != 0 || !File.Exists(output))
+            // kicad-cli exits with 2 when a few shapes fail (OCC errors on odd arcs) but still writes the file: use it.
+            if (!File.Exists(output) || new FileInfo(output).Length == 0)
                 throw new InvalidOperationException((await err).Split('\n').FirstOrDefault(l => l.Trim().Length > 0 && !l.StartsWith("Fontconfig")) ?? $"exit {p.ExitCode}");
         }
         finally

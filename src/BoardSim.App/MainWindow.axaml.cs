@@ -1098,17 +1098,17 @@ public sealed class PartItem(Part part, ComponentInfo? info)
     {
         null => info is null ? "3D …" : "no 3D model",
         { Source: DataSource.Missing } => "3D missing",
-        { } m => $"3D {m.Source switch { DataSource.Project => "project", DataSource.KiCadLibrary => "KiCad", _ => "library" }}" +
+        { } m => $"3D {m.Source switch { DataSource.Project => "project", DataSource.KiCadLibrary => "KiCad", DataSource.Embedded => "in board", _ => "library" }}" +
                  (m.HeightMm is { } h ? $" · {h:0.#} mm" : ""),
     };
     public string Model3DFile => info?.Model3D?.File ?? info?.Model3D?.Model.Path ?? "";
     public IBrush Model3DBackground => new SolidColorBrush(Color.Parse(info?.Model3D?.Source switch
     {
-        DataSource.Project => "#14331f", DataSource.KiCadLibrary or DataSource.ThirdParty => "#1b2733", DataSource.Missing => "#3a1c1c", _ => "#222833",
+        DataSource.Project or DataSource.Embedded => "#14331f", DataSource.KiCadLibrary or DataSource.ThirdParty => "#1b2733", DataSource.Missing => "#3a1c1c", _ => "#222833",
     }));
     public IBrush Model3DForeground => new SolidColorBrush(Color.Parse(info?.Model3D?.Source switch
     {
-        DataSource.Project => "#7ee2a0", DataSource.KiCadLibrary or DataSource.ThirdParty => "#9fb4c8", DataSource.Missing => "#ff8a8a", _ => "#8b93a1",
+        DataSource.Project or DataSource.Embedded => "#7ee2a0", DataSource.KiCadLibrary or DataSource.ThirdParty => "#9fb4c8", DataSource.Missing => "#ff8a8a", _ => "#8b93a1",
     }));
 }
 

@@ -14,6 +14,8 @@ public enum DataSource
     KiCadLibrary,
     /// <summary>A third-party library installed through KiCad's plugin manager.</summary>
     ThirdParty,
+    /// <summary>Stored inside the board file (KiCad 9+, kicad-embed://); KiCad reads it from there.</summary>
+    Embedded,
     /// <summary>The footprint names a file that could not be found.</summary>
     Missing,
 }
@@ -73,6 +75,7 @@ public sealed class ModelResolver
     private (string? File, DataSource Source) Find(string raw)
     {
         var path = raw.Replace('\\', '/');
+        if (path.StartsWith("kicad-embed://", StringComparison.OrdinalIgnoreCase)) return (null, DataSource.Embedded);
         var m = Regex.Match(path, @"^\$\{(\w+)\}/?(.*)$");
         if (m.Success)
         {
@@ -114,7 +117,28 @@ public sealed class ModelResolver
 
     private static string Normalize(string name) => Regex.Replace(name.ToLowerInvariant(), @"[\s_\-.]+", "");
 
-    private Dictionary<string, string> ProjectIndex() => _projectIndex ??= Index(new[] { _project }, depth: 4);
+    /// <summary>
+    /// Model files in the project, by name. Boards often sit in a sub-folder
+    /// (Hardware/) with the models next to it (Libraries/3D models), so the
+    /// search starts at the repository root, or one folder up when there is none.
+    /// </summary>
+    private Dictionary<string, string> ProjectIndex() => _projectIndex ??= Index(ProjectRoots(_project), depth: 4);
+
+    public static IReadOnlyList<string> ProjectRoots(string boardDir)
+    {
+        var roots = new List<string> { boardDir };
+        var dir = new DirectoryInfo(boardDir);
+        for (var up = 0; up < 3 && dir is not null; up++, dir = dir.Parent)
+            if (Directory.Exists(Path.Combine(dir.FullName, ".git")))
+            {
+                if (dir.FullName != boardDir) roots.Add(dir.FullName);
+                return roots;
+            }
+        var parent = Directory.GetParent(boardDir)?.FullName;
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (parent is not null && parent != home && Directory.GetParent(parent) is not null) roots.Add(parent);
+        return roots;
+    }
 
     private static Dictionary<string, string> LibraryIndex() =>
         _libraryIndex ??= Index(LibraryDirs("").Concat(ThirdPartyDirs()), depth: 4);
@@ -136,11 +160,13 @@ public sealed class ModelResolver
                     }
                 if (left > 0)
                     foreach (var d in Directory.EnumerateDirectories(dir))
-                        if (!Path.GetFileName(d).StartsWith('.') && Path.GetFileName(d) is not ("node_modules" or "bin" or "obj"))
+                        if (!Path.GetFileName(d).StartsWith('.') && Path.GetFileName(d) is not ("node_modules" or "bin" or "obj" or "build")
+                            && !Path.GetFileName(d).EndsWith("-backups"))
                             Walk(d, left - 1);
             }
             catch (Exception e) when (e is UnauthorizedAccessException or IOException) { }
         }
+        // The first file found for a name stays (unless it is VRML), so a model next to the board beats one elsewhere in the repository.
         foreach (var r in roots.Where(Directory.Exists)) Walk(r, depth);
         return index;
     }

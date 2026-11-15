@@ -155,4 +155,24 @@ public class EmcTests
         Assert.InRange(mesh.Max.X - mesh.Min.X, 64, 66);    // 65 mm wide board
         Assert.True(mesh.Triangles > 100);
     }
+
+    [Fact]
+    public void FindsModelsBesideTheBoardFolderAndEmbeddedOnes()
+    {
+        // Project/Hardware/board.kicad_pcb with the models in Project/Libraries/3D models, named by a Windows path.
+        var root = Directory.CreateTempSubdirectory("boardsim-proj").FullName;
+        try
+        {
+            var hw = Directory.CreateDirectory(Path.Combine(root, "Hardware")).FullName;
+            var models = Directory.CreateDirectory(Path.Combine(root, "Libraries", "3D models")).FullName;
+            File.WriteAllText(Path.Combine(models, "BME280.step"), "#1=CARTESIAN_POINT('',(0.,0.,0.93));");
+            var resolver = new ModelResolver(hw);
+            var m = resolver.Resolve(new Model3D("C:/Users/someone/OneDrive/Kicad/3D models ESP32/BME280.step", new double[3], new[] { 1.0, 1, 1 }, new double[3], false));
+            Assert.Equal(DataSource.Project, m.Source);
+            Assert.Equal(0.93, m.HeightMm);
+            Assert.Equal(DataSource.Embedded, resolver.Resolve(new Model3D("kicad-embed://GSD090012SEU.step", new double[3], new[] { 1.0, 1, 1 }, new double[3], false)).Source);
+            Assert.Contains(root, ModelResolver.ProjectRoots(hw));
+        }
+        finally { Directory.Delete(root, true); }
+    }
 }
